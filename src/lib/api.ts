@@ -1,0 +1,68 @@
+const BASE =
+  process.env.NEXT_PUBLIC_TENANCY_API_BASE ||
+  "https://tenancy-api-production.up.railway.app";
+
+export type Lease = {
+  lease_id: string;
+  pdf_url: string;
+  status: string;
+  extraction: Record<string, unknown> | null;
+  error: string | null;
+  exception_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Exception = {
+  exception_id: string;
+  lease_id: string;
+  field_path: string;
+  exception_type: string;
+  severity: "blocking" | "warning" | "informational";
+  description: string;
+  suggested_action: string | null;
+  resolved: boolean;
+  resolution: string | null;
+  correction: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type QAResponse = {
+  answer: string;
+  citations: Array<{
+    field_path: string;
+    page_number: number | null;
+    snippet: string | null;
+  }>;
+};
+
+async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { ...init, cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export const listLeases = () => fetchJSON<Lease[]>("/leases");
+
+export const getLease = (id: string) => fetchJSON<Lease>(`/leases/${id}`);
+
+export const createLease = (pdfUrl: string) =>
+  fetchJSON<{ lease_id: string; status: string }>("/leases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pdf_url: pdfUrl }),
+  });
+
+export const listExceptions = (leaseId?: string) =>
+  fetchJSON<Exception[]>(
+    `/exceptions${leaseId ? `?lease_id=${leaseId}` : ""}`,
+  );
+
+export const queryLease = (id: string, question: string) =>
+  fetchJSON<QAResponse>(`/leases/${id}/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });

@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tenancy (web)
 
-## Getting Started
+Next.js 16 + Tailwind 4 UI for the [tenancy-api](https://github.com/kristenmartino/tenancy-api) lease abstraction agent. Drop a residential lease PDF URL, get a structured extraction with source citations and a queue of human-review exceptions.
 
-First, run the development server:
+Live API: https://tenancy-api-production.up.railway.app
+
+## What's here
+
+| Route | What it does |
+|---|---|
+| `/` | Lease list + upload form (POST a PDF URL → kicks off extraction → redirects to detail) |
+| `/leases/[id]` | Structured extraction (JSON, with source spans) and the validation exception queue |
+
+The PDF viewer + source-span click-to-highlight + interactive exception resolve UI are scaffolded gaps — see the [v1 roadmap](#v1-roadmap).
+
+## Stack
+
+- Next.js 16 (App Router), React 19, TypeScript 5
+- Tailwind 4
+- Server components fetch the API; one client component for the upload form
+
+## Configuration
+
+`NEXT_PUBLIC_TENANCY_API_BASE` overrides the API base URL (defaults to the live Railway deploy).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # localhost:3000
+NEXT_PUBLIC_TENANCY_API_BASE=http://localhost:8000 npm run dev  # point at local backend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploying
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Vercel auto-detects Next.js — push the repo, import it in Vercel, no env vars required for the default API target.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## v1 roadmap
 
-## Learn More
+- PDF viewer (react-pdf) with click-to-highlight from extracted source spans
+- Inline exception resolve (approve / edit / reject) instead of read-only
+- Q&A panel hitting `/leases/{id}/query` with citations
+- Auth — currently the API is open
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Companion to [kristenmartino/tenancy-api](https://github.com/kristenmartino/tenancy-api). Part of an applied AI portfolio: [kristenmartino.ai](https://kristenmartino.ai).
