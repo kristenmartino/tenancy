@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UploadForm } from "@/components/UploadForm";
-import { listLeases } from "@/lib/api";
+import { type Lease, listLeases } from "@/lib/api";
 
 export default async function HomePage() {
-  const leases = await listLeases();
+  let leases: Lease[] = [];
+  let fetchError: string | null = null;
+  try {
+    leases = await listLeases();
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : String(err);
+  }
 
   return (
     <div className="space-y-10">
@@ -22,7 +28,19 @@ export default async function HomePage() {
         <h2 className="mb-4 text-lg font-semibold">
           Leases <span className="text-gray-400">({leases.length})</span>
         </h2>
-        {leases.length === 0 ? (
+        {fetchError ? (
+          <div className="rounded border border-red-200 bg-red-50 p-4 text-sm dark:border-red-900/40 dark:bg-red-900/20">
+            <p className="font-medium text-red-700 dark:text-red-300">
+              Couldn&apos;t reach the API
+            </p>
+            <pre className="mt-2 overflow-auto text-xs text-red-600 dark:text-red-400">
+              {fetchError}
+            </pre>
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+              Refresh to retry, or check Railway is healthy.
+            </p>
+          </div>
+        ) : leases.length === 0 ? (
           <p className="text-sm text-gray-500">
             None yet. Drop a URL above to get started.
           </p>

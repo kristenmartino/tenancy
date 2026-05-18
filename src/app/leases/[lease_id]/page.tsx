@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { SeverityBadge, StatusBadge } from "@/components/StatusBadge";
 import { getLease, listExceptions } from "@/lib/api";
 
@@ -8,10 +9,17 @@ export default async function LeasePage({
   params: Promise<{ lease_id: string }>;
 }) {
   const { lease_id } = await params;
-  const [lease, exceptions] = await Promise.all([
-    getLease(lease_id),
-    listExceptions(lease_id),
-  ]);
+  let lease, exceptions;
+  try {
+    [lease, exceptions] = await Promise.all([
+      getLease(lease_id),
+      listExceptions(lease_id),
+    ]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith("404")) notFound();
+    throw err;
+  }
 
   return (
     <div className="space-y-6">
