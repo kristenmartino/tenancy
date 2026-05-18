@@ -23,22 +23,42 @@ export function PdfViewer({
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // When a highlight arrives, jump to that page.
+  // Keep a ref so the post-render callback always sees the latest highlight
+  // (avoids stale-closure issues if highlight changes mid-render).
+  const highlightRef = useRef(highlight);
+  useEffect(() => {
+    highlightRef.current = highlight;
+  }, [highlight]);
+
+  // When a highlight arrives, jump to that page (if different).
   useEffect(() => {
     if (highlight?.page && highlight.page !== pageNumber) {
       setPageNumber(highlight.page);
     }
-    // intentionally not depending on pageNumber — clicking the same
-    // field again should still re-trigger the highlight pass below.
-  }, [highlight]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [highlight, pageNumber]);
 
-  // Apply highlight after the text layer renders. Runs every time the page
-  // changes or the highlight changes.
+  // If the click is on a field that lives on the page we're already showing,
+  // the Page doesn't re-render, so onTextLayerReady never fires. Apply the
+  // highlight directly. A small delay covers React's commit phase.
+  useEffect(() => {
+    if (!highlight?.snippet || !containerRef.current) return;
+    if (highlight.page !== pageNumber) return; // page-change case handles itself
+    const t = setTimeout(() => {
+      if (!containerRef.current) return;
+      clearHighlights(containerRef.current);
+      applyHighlight(containerRef.current, highlight.snippet);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [highlight, pageNumber]);
+
+  // Fires after react-pdf finishes rendering the text layer for the
+  // current page. Pulls the latest highlight from the ref.
   function onTextLayerReady() {
     if (!containerRef.current) return;
     clearHighlights(containerRef.current);
-    if (highlight?.snippet) {
-      applyHighlight(containerRef.current, highlight.snippet);
+    const h = highlightRef.current;
+    if (h?.snippet) {
+      applyHighlight(containerRef.current, h.snippet);
     }
   }
 
@@ -141,32 +161,46 @@ function clearHighlights(root: HTMLElement) {
 }
 
 function applyHighlight(root: HTMLElement, snippet: string) {
-  const layer = root.querySelector(".react-pdf__Page__textContent, .textLayer");
-  if (!layer) return;
+  // react-pdf historically used .react-pdf__Page__textContent; pdfjs-dist
+  // adds .textLayer. Try both, then fall back to the whole container.
+  const layer =
+    root.querySelector(".textLayer") ||
+    root.querySelector(".react-pdf__Page__textContent") ||
+    root;
 
+  const spans = layer.querySelectorAll<HTMLElement>("span");
   const needle = normalize(snippet);
   if (needle.length < 4) return;
 
-  // Try a few prefix lengths so we tolerate snippets that include extra
-  // context the rendered PDF chunks differently.
+  // Try several prefix lengths so we tolerate the snippet including extra
+  // context that the rendered PDF chunks into smaller spans.
   const candidates = [
     needle.slice(0, 30),
     needle.slice(0, 18),
     needle.slice(0, 10),
-  ];
+    needle.slice(0, 6),
+  ].filter((c) => c.length >= 4);
 
   const matches: HTMLElement[] = [];
-  layer.querySelectorAll<HTMLElement>("span").forEach((span) => {
+  spans.forEach((span) => {
     const text = normalize(span.textContent || "");
-    if (!text) return;
+    if (text.length < 2) return;
+    // Match if any candidate contains the span's text (typical: span has
+    // a single word from a longer snippet) OR vice versa.
     const hit = candidates.some(
-      (c) => c.length >= 4 && (text.includes(c) || c.includes(text)),
+      (c) => text.includes(c) || c.includes(text),
     );
     if (hit) {
       span.classList.add("tenancy-highlight");
       matches.push(span);
     }
   });
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[tenancy] highlight: snippet=${JSON.stringify(snippet.slice(0, 40))} ` +
+      `spans=${spans.length} matches=${matches.length}`,
+  );
 
   matches[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
