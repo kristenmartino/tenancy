@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExtractionView } from "@/components/Extraction";
+import { PdfViewer } from "@/components/PdfViewerLoader";
 import { SeverityBadge, StatusBadge } from "@/components/StatusBadge";
 import { getLease, listExceptions } from "@/lib/api";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_TENANCY_API_BASE ||
+  "https://tenancy-api-production.up.railway.app";
 
 export default async function LeasePage({
   params,
@@ -22,6 +27,9 @@ export default async function LeasePage({
     throw err;
   }
 
+  const pdfUrl = `${API_BASE}/leases/${lease_id}/pdf`;
+  const showSource = !lease.pdf_url.startsWith("upload://");
+
   return (
     <div className="space-y-6">
       <Link
@@ -36,14 +44,18 @@ export default async function LeasePage({
           <h1 className="font-mono text-lg">{lease_id.slice(0, 8)}</h1>
           <StatusBadge status={lease.status} />
         </div>
-        <a
-          href={lease.pdf_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block break-all text-xs text-gray-500 hover:underline"
-        >
-          {lease.pdf_url}
-        </a>
+        {showSource ? (
+          <a
+            href={lease.pdf_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block break-all text-xs text-gray-500 hover:underline"
+          >
+            {lease.pdf_url}
+          </a>
+        ) : (
+          <p className="text-xs text-gray-500">{lease.pdf_url}</p>
+        )}
         {lease.error && (
           <pre className="rounded bg-red-50 p-3 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
             {lease.error}
@@ -51,51 +63,60 @@ export default async function LeasePage({
         )}
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <section>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="lg:sticky lg:top-6 lg:self-start">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Extraction
+            Source PDF
           </h2>
-          {lease.extraction ? (
-            <ExtractionView extraction={lease.extraction} />
-          ) : (
-            <p className="text-sm text-gray-500">No extraction yet.</p>
-          )}
+          <PdfViewer url={pdfUrl} />
         </section>
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Exceptions{" "}
-            <span className="text-gray-400">({exceptions.length})</span>
-          </h2>
-          {exceptions.length === 0 ? (
-            <p className="text-sm text-gray-500">No exceptions.</p>
-          ) : (
-            <ul className="space-y-3">
-              {exceptions.map((exc) => (
-                <li
-                  key={exc.exception_id}
-                  className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800"
-                >
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <SeverityBadge severity={exc.severity} />
-                    <code className="text-xs text-gray-600 dark:text-gray-400">
-                      {exc.field_path}
-                    </code>
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    {exc.description}
-                  </p>
-                  {exc.suggested_action && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      Suggested: {exc.suggested_action}
+        <div className="space-y-6">
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Extraction
+            </h2>
+            {lease.extraction ? (
+              <ExtractionView extraction={lease.extraction} />
+            ) : (
+              <p className="text-sm text-gray-500">No extraction yet.</p>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Exceptions{" "}
+              <span className="text-gray-400">({exceptions.length})</span>
+            </h2>
+            {exceptions.length === 0 ? (
+              <p className="text-sm text-gray-500">No exceptions.</p>
+            ) : (
+              <ul className="space-y-3">
+                {exceptions.map((exc) => (
+                  <li
+                    key={exc.exception_id}
+                    className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <SeverityBadge severity={exc.severity} />
+                      <code className="text-xs text-gray-600 dark:text-gray-400">
+                        {exc.field_path}
+                      </code>
+                    </div>
+                    <p className="text-gray-700 dark:text-gray-300">
+                      {exc.description}
                     </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    {exc.suggested_action && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Suggested: {exc.suggested_action}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
