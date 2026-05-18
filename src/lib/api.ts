@@ -55,6 +55,17 @@ export const createLease = (pdfUrl: string) =>
     body: JSON.stringify({ pdf_url: pdfUrl }),
   });
 
+export const uploadLease = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  // Note: don't set Content-Type — the browser sets it with the multipart
+  // boundary automatically. Manually setting it breaks the boundary.
+  return fetchJSON<{ lease_id: string; status: string }>("/leases/upload", {
+    method: "POST",
+    body: formData,
+  });
+};
+
 export const listExceptions = (leaseId?: string) =>
   fetchJSON<Exception[]>(
     `/exceptions${leaseId ? `?lease_id=${leaseId}` : ""}`,
