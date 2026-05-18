@@ -2,11 +2,48 @@ const BASE =
   process.env.NEXT_PUBLIC_TENANCY_API_BASE ||
   "https://tenancy-api-production.up.railway.app";
 
+export type SourceSpan = {
+  page_number: number;
+  char_start: number;
+  char_end: number;
+  snippet: string;
+};
+
+export type ExtractedField<T = unknown> = {
+  value: T | null;
+  confidence: number;
+  source: SourceSpan | null;
+  notes: string | null;
+};
+
+export type Party = {
+  name: ExtractedField<string>;
+  role: string;
+  email: ExtractedField<string> | null;
+  phone: ExtractedField<string> | null;
+  address: ExtractedField<string> | null;
+};
+
+export type Extraction = {
+  lease_id: string;
+  template_detected: string;
+  parties: Party[];
+  property: Record<string, ExtractedField | null>;
+  term: Record<string, ExtractedField | null>;
+  rent: Record<string, ExtractedField | null>;
+  deposits: Record<string, ExtractedField | null>;
+  utilities: Record<string, ExtractedField | null>;
+  pets: Record<string, ExtractedField | null>;
+  special_clauses: Record<string, ExtractedField | null>;
+  compliance: Record<string, ExtractedField | null>;
+  overall_confidence: number;
+};
+
 export type Lease = {
   lease_id: string;
   pdf_url: string;
   status: string;
-  extraction: Record<string, unknown> | null;
+  extraction: Extraction | null;
   error: string | null;
   exception_count: number;
   created_at: string;

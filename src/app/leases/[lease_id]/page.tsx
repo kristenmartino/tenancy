@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExtractionView } from "@/components/Extraction";
 import { SeverityBadge, StatusBadge } from "@/components/StatusBadge";
 import { getLease, listExceptions } from "@/lib/api";
 
@@ -56,9 +57,7 @@ export default async function LeasePage({
             Extraction
           </h2>
           {lease.extraction ? (
-            <pre className="max-h-[700px] overflow-auto rounded border border-gray-200 bg-gray-50 p-4 text-xs leading-relaxed dark:border-gray-800 dark:bg-gray-950">
-              {JSON.stringify(lease.extraction, null, 2)}
-            </pre>
+            <ExtractionView extraction={lease.extraction} />
           ) : (
             <p className="text-sm text-gray-500">No extraction yet.</p>
           )}
