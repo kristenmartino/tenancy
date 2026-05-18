@@ -6,9 +6,10 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { FieldHighlight } from "@/lib/api";
 
-// Worker from cdnjs matching the bundled pdfjs-dist version. Avoids the
-// Next.js + Turbopack worker-bundling rabbit hole.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+// Worker from unpkg matching the bundled pdfjs-dist version exactly.
+// unpkg proxies npm directly, so any published version is available
+// (cdnjs lags by a few releases — was missing 5.4.296).
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export function PdfViewer({
   url,
