@@ -16,6 +16,12 @@ export type ExtractedField<T = unknown> = {
   notes: string | null;
 };
 
+export type FieldHighlight = {
+  page: number;
+  snippet: string;
+  fieldPath: string;
+};
+
 export type Party = {
   name: ExtractedField<string>;
   role: string;

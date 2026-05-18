@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Source-span highlight on the PDF text layer */
+.tenancy-pdf-viewer .tenancy-highlight {
+  background-color: rgba(250, 204, 21, 0.45); /* yellow-400 @ 45% */
+  border-radius: 2px;
+  transition: background-color 200ms ease;
+}

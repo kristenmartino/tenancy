@@ -1,11 +1,30 @@
-import type { ExtractedField, Extraction, Party } from "@/lib/api";
+"use client";
+
+import { createContext, useContext } from "react";
+import type {
+  ExtractedField,
+  Extraction,
+  FieldHighlight,
+  Party,
+} from "@/lib/api";
+
+// Pass the click handler through React Context instead of prop-drilling
+// through 4 layers of section / list / row components.
+const ClickContext = createContext<((h: FieldHighlight) => void) | null>(null);
 
 // ---------------------------------------------------------------------------
 // Top-level
 // ---------------------------------------------------------------------------
 
-export function ExtractionView({ extraction }: { extraction: Extraction }) {
+export function ExtractionView({
+  extraction,
+  onFieldClick,
+}: {
+  extraction: Extraction;
+  onFieldClick?: (h: FieldHighlight) => void;
+}) {
   return (
+    <ClickContext.Provider value={onFieldClick ?? null}>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <span>
@@ -29,7 +48,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
         ) : (
           <div className="space-y-4">
             {extraction.parties.map((p, i) => (
-              <PartyBlock key={i} party={p} />
+              <PartyBlock key={i} party={p} index={i} />
             ))}
           </div>
         )}
@@ -37,6 +56,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Property">
         <FieldList
+          sectionPath="property"
           fields={extraction.property}
           order={[
             "street_address",
@@ -52,6 +72,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Term">
         <FieldList
+          sectionPath="term"
           fields={extraction.term}
           order={[
             "start_date",
@@ -65,6 +86,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Rent">
         <FieldList
+          sectionPath="rent"
           fields={extraction.rent}
           order={[
             "base_monthly_rent",
@@ -88,6 +110,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Deposits">
         <FieldList
+          sectionPath="deposits"
           fields={extraction.deposits}
           order={[
             "security_deposit",
@@ -108,6 +131,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Utilities">
         <FieldList
+          sectionPath="utilities"
           fields={extraction.utilities}
           order={["electric", "gas", "water", "sewer", "trash", "internet", "cable"]}
         />
@@ -115,6 +139,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Pets">
         <FieldList
+          sectionPath="pets"
           fields={extraction.pets}
           order={[
             "pets_allowed",
@@ -129,6 +154,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Special clauses">
         <FieldList
+          sectionPath="special_clauses"
           fields={extraction.special_clauses}
           order={[
             "early_termination_allowed",
@@ -144,6 +170,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
 
       <SectionCard title="Compliance disclosures">
         <FieldList
+          sectionPath="compliance"
           fields={extraction.compliance}
           order={[
             "lead_paint_disclosure",
@@ -155,6 +182,7 @@ export function ExtractionView({ extraction }: { extraction: Extraction }) {
         />
       </SectionCard>
     </div>
+    </ClickContext.Provider>
   );
 }
 
@@ -181,7 +209,7 @@ function SectionCard({
   );
 }
 
-function PartyBlock({ party }: { party: Party }) {
+function PartyBlock({ party, index }: { party: Party; index: number }) {
   return (
     <div className="rounded border border-gray-100 p-3 dark:border-gray-800">
       <div className="mb-2 flex items-center gap-2">
@@ -190,10 +218,32 @@ function PartyBlock({ party }: { party: Party }) {
         </span>
       </div>
       <dl>
-        <FieldRow label="Name" field={party.name} />
-        {party.email && <FieldRow label="Email" field={party.email} />}
-        {party.phone && <FieldRow label="Phone" field={party.phone} />}
-        {party.address && <FieldRow label="Address" field={party.address} />}
+        <FieldRow
+          label="Name"
+          field={party.name}
+          fieldPath={`parties[${index}].name`}
+        />
+        {party.email && (
+          <FieldRow
+            label="Email"
+            field={party.email}
+            fieldPath={`parties[${index}].email`}
+          />
+        )}
+        {party.phone && (
+          <FieldRow
+            label="Phone"
+            field={party.phone}
+            fieldPath={`parties[${index}].phone`}
+          />
+        )}
+        {party.address && (
+          <FieldRow
+            label="Address"
+            field={party.address}
+            fieldPath={`parties[${index}].address`}
+          />
+        )}
       </dl>
     </div>
   );
@@ -202,10 +252,12 @@ function PartyBlock({ party }: { party: Party }) {
 type FormatHint = "currency" | "default";
 
 function FieldList({
+  sectionPath,
   fields,
   order,
   formats,
 }: {
+  sectionPath: string;
   fields: Record<string, ExtractedField | null>;
   order: string[];
   formats?: Record<string, FormatHint>;
@@ -220,6 +272,7 @@ function FieldList({
             key={key}
             label={humanize(key)}
             field={f}
+            fieldPath={`${sectionPath}.${key}`}
             format={formats?.[key]}
           />
         );
@@ -231,20 +284,47 @@ function FieldList({
 function FieldRow({
   label,
   field,
+  fieldPath,
   format,
 }: {
   label: string;
   field: ExtractedField;
+  fieldPath: string;
   format?: FormatHint;
 }) {
+  const onClick = useContext(ClickContext);
+  const clickable = !!field.source && !!onClick;
+
+  const handleClick = () => {
+    if (!clickable || !field.source) return;
+    onClick?.({
+      page: field.source.page_number,
+      snippet: field.source.snippet,
+      fieldPath,
+    });
+  };
+
   return (
-    <div className="flex flex-col gap-0.5 border-b border-gray-50 py-2 last:border-0 dark:border-gray-800/50 md:flex-row md:items-baseline md:justify-between md:gap-3">
+    <div
+      onClick={handleClick}
+      className={`flex flex-col gap-0.5 border-b border-gray-50 py-2 last:border-0 dark:border-gray-800/50 md:flex-row md:items-baseline md:justify-between md:gap-3 ${
+        clickable
+          ? "-mx-2 cursor-pointer rounded px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          : ""
+      }`}
+      title={clickable ? "Click to view source in PDF" : undefined}
+    >
       <dt className="text-sm text-gray-500 md:flex-shrink-0">{label}</dt>
       <dd className="flex items-center gap-2 text-sm">
         <span className={field.value === null ? "text-gray-400" : "font-medium"}>
           {formatValue(field.value, format)}
         </span>
         <ConfidenceBadge value={field.confidence} />
+        {clickable && (
+          <span className="text-[10px] text-blue-500 dark:text-blue-400">
+            p.{field.source?.page_number}
+          </span>
+        )}
       </dd>
       {field.notes && (
         <p className="basis-full text-xs italic text-gray-500 md:mt-1">
