@@ -25,9 +25,18 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Source-span highlight on the PDF text layer */
-.tenancy-pdf-viewer .tenancy-highlight {
-  background-color: rgba(250, 204, 21, 0.45); /* yellow-400 @ 45% */
+/* Source-span highlight on the PDF text layer.
+ * pdfjs uses color:transparent on text-layer spans (they overlay invisibly
+ * for selection). Background works, but we use !important and an outline
+ * to outweigh any opacity tricks the parent layer might apply. */
+.tenancy-highlight {
+  background-color: rgba(250, 204, 21, 0.55) !important; /* yellow-400 */
+  outline: 1px solid rgba(202, 138, 4, 0.8) !important;
   border-radius: 2px;
-  transition: background-color 200ms ease;
+  animation: tenancy-pulse 1.2s ease-out 1;
+}
+
+@keyframes tenancy-pulse {
+  0%   { background-color: rgba(250, 204, 21, 0.9); }
+  100% { background-color: rgba(250, 204, 21, 0.55); }
 }

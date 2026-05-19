@@ -160,6 +160,46 @@ function clearHighlights(root: HTMLElement) {
     .forEach((el) => el.classList.remove("tenancy-highlight"));
 }
 
+// Pull "distinctive" tokens from the snippet: words ≥4 chars that aren't
+// stopwords. These are much more reliable to match than prefix substrings,
+// because PDF.js chunks text by runs (often per-word) and word order can
+// shift relative to what pypdf extracted.
+const STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "shall",
+  "this",
+  "that",
+  "from",
+  "into",
+  "upon",
+  "such",
+  "your",
+  "their",
+  "have",
+  "been",
+  "will",
+  "any",
+  "all",
+  "any",
+  "lease",
+  "tenant",
+  "landlord",
+  "agreement",
+  "rent",
+  "term",
+]);
+
+function distinctiveTokens(snippet: string): string[] {
+  return normalize(snippet)
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w.length >= 4 && !STOPWORDS.has(w))
+    .slice(0, 8);
+}
+
 function applyHighlight(root: HTMLElement, snippet: string) {
   // react-pdf historically used .react-pdf__Page__textContent; pdfjs-dist
   // adds .textLayer. Try both, then fall back to the whole container.
@@ -170,26 +210,33 @@ function applyHighlight(root: HTMLElement, snippet: string) {
 
   const spans = layer.querySelectorAll<HTMLElement>("span");
   const needle = normalize(snippet);
-  if (needle.length < 4) return;
+  if (needle.length < 3) return;
 
-  // Try several prefix lengths so we tolerate the snippet including extra
-  // context that the rendered PDF chunks into smaller spans.
-  const candidates = [
+  const tokens = distinctiveTokens(snippet);
+  // Fallback prefix-based candidates in case tokens are too few.
+  const prefixes = [
     needle.slice(0, 30),
     needle.slice(0, 18),
     needle.slice(0, 10),
     needle.slice(0, 6),
   ].filter((c) => c.length >= 4);
 
+  const sampleTexts: string[] = [];
   const matches: HTMLElement[] = [];
   spans.forEach((span) => {
     const text = normalize(span.textContent || "");
     if (text.length < 2) return;
-    // Match if any candidate contains the span's text (typical: span has
-    // a single word from a longer snippet) OR vice versa.
-    const hit = candidates.some(
-      (c) => text.includes(c) || c.includes(text),
-    );
+    if (sampleTexts.length < 5) sampleTexts.push(text.slice(0, 30));
+    const cleanedText = text.replace(/[^a-z0-9 ]/g, " ");
+    const hit =
+      // Distinctive-token match (preferred)
+      tokens.some(
+        (t) =>
+          cleanedText.includes(t) ||
+          cleanedText.split(/\s+/).some((w) => w === t),
+      ) ||
+      // Prefix-substring fallback
+      prefixes.some((c) => text.includes(c) || c.includes(text));
     if (hit) {
       span.classList.add("tenancy-highlight");
       matches.push(span);
@@ -197,10 +244,14 @@ function applyHighlight(root: HTMLElement, snippet: string) {
   });
 
   // eslint-disable-next-line no-console
-  console.log(
-    `[tenancy] highlight: snippet=${JSON.stringify(snippet.slice(0, 40))} ` +
-      `spans=${spans.length} matches=${matches.length}`,
-  );
+  console.log("[tenancy] highlight", {
+    snippet: snippet.slice(0, 60),
+    layerClass: layer instanceof Element ? layer.className : "(fallback)",
+    spans: spans.length,
+    matches: matches.length,
+    tokens,
+    sampleSpanTexts: sampleTexts,
+  });
 
   matches[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
