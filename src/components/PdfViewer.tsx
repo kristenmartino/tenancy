@@ -243,14 +243,29 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     }
   });
 
+  // Full diagnostic so we can see what's actually in the DOM if matching
+  // continues to fail (different react-pdf 10 text-layer structure?).
+  const allElements = root.querySelectorAll("*");
+  const tagCounts: Record<string, number> = {};
+  allElements.forEach((el) => {
+    tagCounts[el.tagName.toLowerCase()] =
+      (tagCounts[el.tagName.toLowerCase()] || 0) + 1;
+  });
   // eslint-disable-next-line no-console
   console.log("[tenancy] highlight", {
     snippet: snippet.slice(0, 60),
-    layerClass: layer instanceof Element ? layer.className : "(fallback)",
+    layerFound: layer !== root,
+    layerClass: layer instanceof Element ? layer.className : "(none)",
     spans: spans.length,
     matches: matches.length,
     tokens,
     sampleSpanTexts: sampleTexts,
+    // Reveal whatever react-pdf 10 actually rendered:
+    rootChildElementCount: root.childElementCount,
+    tagCounts,
+    classListSample: Array.from(allElements)
+      .slice(0, 30)
+      .map((el) => `${el.tagName.toLowerCase()}.${el.className || "(no class)"}`),
   });
 
   matches[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
