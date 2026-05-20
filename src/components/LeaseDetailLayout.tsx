@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ExtractionView } from "@/components/Extraction";
 import { ExceptionRow } from "@/components/ExceptionRow";
 import { PdfViewer } from "@/components/PdfViewerLoader";
+import { QAPanel } from "@/components/QAPanel";
 import type { Exception, Extraction, FieldHighlight, Lease } from "@/lib/api";
 
 export function LeaseDetailLayout({
@@ -38,6 +39,13 @@ export function LeaseDetailLayout({
       </section>
 
       <div className="space-y-6">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Q&amp;A
+          </h2>
+          <QAPanel leaseId={lease.lease_id} onCitationClick={setHighlight} />
+        </section>
+
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Extraction
