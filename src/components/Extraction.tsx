@@ -302,6 +302,7 @@ function FieldRow({
       snippet: field.source.snippet,
       fieldPath,
       value: stringifyValue(field.value),
+      bbox: field.source.bbox ?? null,
     });
   };
 
