@@ -1,14 +1,14 @@
 # Status
 
-> **Active focus:** ship the interactive review surfaces (exception resolve + Q&A panel) + record demo. Strict highlight matcher just landed ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — silent failures are honest behavior; the actual fix is bbox overlays driven by extraction-time coordinates (issue [#14](https://github.com/kristenmartino/tenancy/issues/14), depends on backend bbox emission).
+> **Active focus:** bbox overlay v2 just shipped ([#14](https://github.com/kristenmartino/tenancy/issues/14)) — text-layer matcher gone, click-to-highlight drives off `source.bbox` from the backend. Last `Next 3` item is the demo recording.
 
-> **Open question:** none in flight. Highlight direction decided.
+> **Open question:** none in flight.
 
 ## Next 3
 
-1. **[#1]** Interactive exception resolve UI (approve / edit / reject) — `now` `effort-day`
-2. **[#2]** Q&A panel using existing `/leases/{id}/query` endpoint — `now` `effort-day`
-3. **[#14]** Replace text-layer matching with bbox overlay — `next` `effort-week` (cross-repo dep on [tenancy-api#16](https://github.com/kristenmartino/tenancy-api/issues/16))
+1. **[#1]** Interactive exception resolve UI (approve / edit / reject) — ✅ shipped ([#16](https://github.com/kristenmartino/tenancy/pull/16))
+2. **[#2]** Q&A panel using existing `/leases/{id}/query` endpoint — ✅ shipped
+3. **[tenancy-api#2]** Record 60-90s demo video for the case study — `now` `effort-day`
 
 ## Later
 
@@ -17,14 +17,16 @@
 - **Better empty / loading / error states** across the board
 - **Multi-tenant theming** (organization branding, custom colors)
 - **Re-extraction diff view**
+- **[tenancy-api#17]** v3 highlight: AWS Textract for production-grade bbox accuracy (~99%). Promote when the vision-bbox approach (~80%) is the bottleneck.
 
 ## Blocked on
 
-- [#14] (bbox overlay) is blocked on [tenancy-api#16](https://github.com/kristenmartino/tenancy-api/issues/16) — backend must emit `source.bbox` first
+Nothing in flight.
 
 ## Recent decisions
 
-- **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — replaced 12+ iterations of fuzzy text matching with exact-normalized-match only. Silent failures preferred over wrong-place highlights. Real fix is bbox overlays (#14) once backend ships [tenancy-api#16](https://github.com/kristenmartino/tenancy-api/issues/16).
+- **Bbox overlay v2** ([#14](https://github.com/kristenmartino/tenancy/issues/14)) — removed the text-layer matcher (normalize-map fuzzy search, span-tinting, the 12+ heuristic iterations) and the PDF.js text layer + cmap config that fed it. On click, the viewer reads `source.bbox` (normalized 0-1 coords from Sonnet vision) and renders an absolutely-positioned overlay over the page canvas at the bbox's pixel rect. Falls back to page-jump-only when bbox is missing (old leases, Q&A citations). Production-grade accuracy is v3 (AWS Textract, [tenancy-api#17](https://github.com/kristenmartino/tenancy-api/issues/17)).
+- **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — replaced 12+ iterations of fuzzy text matching with exact-normalized-match only. Silent failures preferred over wrong-place highlights. Now superseded by bbox overlay v2 above.
 - **Cache-bust PDF URL with `?v={updated_at}` + `key={updated_at}` on PdfViewer** — fixed the cached-404 problem where react-pdf wouldn't retry after the initial pending-state load failed.
 - **`Cache-Control: no-store` on backend 404s** — companion fix so browsers don't cache transient 404s during the pending window.
 - **Graceful error boundary on every server-side fetch** — prevents Vercel's generic 500 page from appearing on transient backend hiccups.

@@ -2,11 +2,19 @@ const BASE =
   process.env.NEXT_PUBLIC_TENANCY_API_BASE ||
   "https://tenancy-api-production.up.railway.app";
 
+export type BoundingBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type SourceSpan = {
   page_number: number;
   char_start: number;
   char_end: number;
   snippet: string;
+  bbox: BoundingBox | null;
 };
 
 export type ExtractedField<T = unknown> = {
@@ -18,13 +26,11 @@ export type ExtractedField<T = unknown> = {
 
 export type FieldHighlight = {
   page: number;
-  snippet: string;
   fieldPath: string;
-  // The field's extracted value as a string, if any. Used by the
-  // highlighter to match verbatim text in the PDF (often more reliable
-  // than the LLM's "supporting" snippet, which can paraphrase or include
-  // surrounding context).
-  value: string | null;
+  // Normalized (0-1) page coords from the extractor. When present, the
+  // viewer draws an absolutely-positioned overlay; when null, the click
+  // just jumps to the page.
+  bbox: BoundingBox | null;
 };
 
 export type Party = {

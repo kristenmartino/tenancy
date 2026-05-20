@@ -68,9 +68,8 @@ export function QAPanel({
     if (citation.page_number == null) return;
     onCitationClick({
       page: citation.page_number,
-      snippet: citation.snippet ?? "",
       fieldPath: citation.field_path,
-      value: null,
+      bbox: null,
     });
   };
 

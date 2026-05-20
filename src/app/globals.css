@@ -25,18 +25,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Source-span highlight on the PDF text layer.
- * pdfjs uses color:transparent on text-layer spans (they overlay invisibly
- * for selection). Background works, but we use !important and an outline
- * to outweigh any opacity tricks the parent layer might apply. */
-.tenancy-highlight {
-  background-color: rgba(250, 204, 21, 0.55) !important; /* yellow-400 */
-  outline: 1px solid rgba(202, 138, 4, 0.8) !important;
+/* Bbox overlay over the rendered PDF canvas — positioned in pixel coords
+ * derived from the extractor's normalized (0-1) bounding box. */
+.tenancy-bbox-overlay {
+  background-color: rgba(250, 204, 21, 0.35); /* yellow-400 */
+  outline: 2px solid rgba(202, 138, 4, 0.9);
   border-radius: 2px;
   animation: tenancy-pulse 1.2s ease-out 1;
 }
 
 @keyframes tenancy-pulse {
-  0%   { background-color: rgba(250, 204, 21, 0.9); }
-  100% { background-color: rgba(250, 204, 21, 0.55); }
+  0%   { background-color: rgba(250, 204, 21, 0.7); }
+  100% { background-color: rgba(250, 204, 21, 0.35); }
 }
