@@ -84,7 +84,7 @@ export function ExceptionRow({
       </div>
       <p
         className={`text-gray-700 dark:text-gray-300 ${
-          muted ? "line-through" : ""
+          muted && resolution === "reject" ? "line-through" : ""
         }`}
       >
         {exception.description}
