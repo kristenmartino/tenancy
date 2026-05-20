@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LeaseDetailLayout } from "@/components/LeaseDetailLayout";
+import { LeaseStatusPoller } from "@/components/LeaseStatusPoller";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getLease, listExceptions } from "@/lib/api";
 
@@ -60,7 +61,19 @@ export default async function LeasePage({
             {lease.error}
           </pre>
         )}
+        {lease.status === "pending" && (
+          <div className="flex items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+            </span>
+            Extraction in progress — this page refreshes automatically when it
+            completes (~30-60s).
+          </div>
+        )}
       </header>
+
+      <LeaseStatusPoller leaseId={lease_id} currentStatus={lease.status} />
 
       <LeaseDetailLayout
         lease={lease}
