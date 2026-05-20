@@ -59,8 +59,26 @@ export function ExceptionRow({
           {exception.field_path}
         </code>
         {resolved && resolution && (
-          <span className="ml-auto rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {resolution}
+          <span className="ml-auto flex items-center gap-2">
+            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              {resolution}
+            </span>
+            {!pending && (
+              <button
+                type="button"
+                onClick={() => {
+                  setResolved(false);
+                  setResolution(null);
+                  setError(null);
+                }}
+                // Local-only undo. Backend resolution persists; reloading the
+                // page will show the row resolved again.
+                title="Reopen in this view — backend resolution persists until backend reopen lands"
+                className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+              >
+                Reopen
+              </button>
+            )}
           </span>
         )}
       </div>
