@@ -17,13 +17,20 @@ export function LeaseDetailLayout({
 }) {
   const [highlight, setHighlight] = useState<FieldHighlight | null>(null);
 
+  // Cache-bust the PDF URL with the lease's updated_at so the browser
+  // doesn't serve a cached 404 from when the lease was pending (and
+  // pdf_bytes wasn't yet persisted). When status flips to complete and
+  // updated_at changes, the URL changes → react-pdf re-fetches → fresh
+  // bytes → text layer actually renders.
+  const pdfUrlWithCacheBust = `${pdfUrl}?v=${encodeURIComponent(lease.updated_at)}`;
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="lg:sticky lg:top-6 lg:self-start">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
           Source PDF
         </h2>
-        <PdfViewer url={pdfUrl} highlight={highlight} />
+        <PdfViewer url={pdfUrlWithCacheBust} highlight={highlight} />
       </section>
 
       <div className="space-y-6">
