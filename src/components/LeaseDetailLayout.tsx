@@ -30,7 +30,11 @@ export function LeaseDetailLayout({
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
           Source PDF
         </h2>
-        <PdfViewer url={pdfUrlWithCacheBust} highlight={highlight} />
+        <PdfViewer
+          key={lease.updated_at}
+          url={pdfUrlWithCacheBust}
+          highlight={highlight}
+        />
       </section>
 
       <div className="space-y-6">
