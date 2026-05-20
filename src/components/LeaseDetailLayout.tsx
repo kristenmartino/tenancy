@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExtractionView } from "@/components/Extraction";
 import { PdfViewer } from "@/components/PdfViewerLoader";
+import { QAPanel } from "@/components/QAPanel";
 import { SeverityBadge } from "@/components/StatusBadge";
 import type { Exception, FieldHighlight, Lease } from "@/lib/api";
 
@@ -84,6 +85,13 @@ export function LeaseDetailLayout({
               ))}
             </ul>
           )}
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Q&amp;A
+          </h2>
+          <QAPanel leaseId={lease.lease_id} onCitationClick={setHighlight} />
         </section>
       </div>
     </div>
