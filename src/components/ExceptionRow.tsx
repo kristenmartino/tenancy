@@ -89,6 +89,14 @@ export function ExceptionRow({
       >
         {exception.description}
       </p>
+      {resolved && resolution === "edit" && editValue && !pending && (
+        <p className="mt-1 text-sm">
+          <span className="text-gray-500">→ corrected to </span>
+          <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
+            {editValue}
+          </span>
+        </p>
+      )}
       {exception.suggested_action && (
         <p className="mt-2 text-xs text-gray-500">
           Suggested: {exception.suggested_action}
