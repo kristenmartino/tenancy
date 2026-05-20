@@ -251,6 +251,10 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     tagCounts[el.tagName.toLowerCase()] =
       (tagCounts[el.tagName.toLowerCase()] || 0) + 1;
   });
+  // Deeper diagnostic: dump the text layer's own innerHTML so we can see
+  // what PDF.js actually emitted into it (or whether it's empty).
+  const layerInnerHTML =
+    layer instanceof Element ? layer.innerHTML.slice(0, 400) : "(no layer)";
   // eslint-disable-next-line no-console
   console.log("[tenancy] highlight", {
     snippet: snippet.slice(0, 60),
@@ -260,9 +264,10 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     matches: matches.length,
     tokens,
     sampleSpanTexts: sampleTexts,
-    // Reveal whatever react-pdf 10 actually rendered:
     rootChildElementCount: root.childElementCount,
     tagCounts,
+    layerChildren: layer instanceof Element ? layer.children.length : 0,
+    layerInnerHTML,
     classListSample: Array.from(allElements)
       .slice(0, 30)
       .map((el) => `${el.tagName.toLowerCase()}.${el.className || "(no class)"}`),
