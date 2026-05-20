@@ -162,19 +162,25 @@ function clearHighlights(root: HTMLElement) {
     .forEach((el) => el.classList.remove("tenancy-highlight"));
 }
 
+/**
+ * Strict matcher: only highlights when there is an exact substring match
+ * (after normalizing whitespace + punctuation) of either the field's value
+ * or the LLM's snippet in the page's text layer. No fuzzy fallbacks — fewer
+ * false positives, occasional silent failures (page still jumps so the
+ * user can see the field). The "real" fix for unreliable highlighting is
+ * coordinate-based overlays driven by extraction-time bboxes
+ * (kristenmartino/tenancy issue 13 + tenancy-api issue 16); this strict
+ * matcher is the v1 stopgap.
+ */
 function applyHighlight(root: HTMLElement, h: FieldHighlight) {
-  // react-pdf historically used .react-pdf__Page__textContent; pdfjs-dist
-  // adds .textLayer. Try both, then fall back to the whole container.
   const layer =
     root.querySelector(".textLayer") ||
     root.querySelector(".react-pdf__Page__textContent") ||
     root;
-
   const allSpans = Array.from(layer.querySelectorAll<HTMLElement>("span"));
   if (allSpans.length === 0) return;
 
-  // Build the page text by concatenating spans in document order, tracking
-  // which character range in pageText belongs to which span.
+  // Build the page text and per-span ranges
   let pageText = "";
   const ranges: Array<{ span: HTMLElement; start: number; end: number }> = [];
   for (const span of allSpans) {
@@ -183,29 +189,22 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
     ranges.push({ span, start: pageText.length, end: pageText.length + text.length });
     pageText += `${text} `;
   }
-
-  // Build a normalized version (lowercase + alphanumerics-and-single-spaces)
-  // with a map back to original pageText positions. Match in normalized
-  // space — that way "(254) 235-8343", "(254)235-8343", and "(254)\n235-8343"
-  // all collapse to the same string. Then map the match back to original
-  // coordinates so we can highlight the right spans.
   const { norm, origIdx } = normalizeWithMap(pageText);
 
-  // Try the field's value first (verbatim from extraction), fall back to
-  // the LLM's snippet.
-  const matchRange =
-    findValueMatch(norm, origIdx, h.value, h.snippet) ??
-    findSnippetMatch(norm, origIdx, h.snippet);
+  // Try value first (floor 4 chars — values are inherently distinctive),
+  // then snippet (floor 20 chars — generic phrases are too risky).
+  const match =
+    exactNormalizedMatch(norm, origIdx, h.value, 4) ??
+    exactNormalizedMatch(norm, origIdx, h.snippet, 20);
 
-  if (!matchRange) {
+  if (!match) {
     // eslint-disable-next-line no-console
-    console.log("[tenancy] highlight: NO MATCH", {
-      fieldPath: h.fieldPath,
-      value: h.value?.slice(0, 30),
-    });
+    console.log(
+      `[tenancy] highlight: no exact match for ${h.fieldPath}`,
+    );
     return;
   }
-  const [matchStart, matchEnd] = matchRange;
+  const [matchStart, matchEnd] = match;
 
   const matched: HTMLElement[] = [];
   for (const { span, start, end } of ranges) {
@@ -214,35 +213,17 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
       matched.push(span);
     }
   }
-
-  // Diagnostic — includes the matched chunk's actual text and the first
-  // matched span's bounding rect, so if the matcher is picking the right
-  // text but the highlight appears in the wrong visual place, we'll see
-  // the discrepancy in console.
-  const matchedText = pageText.slice(matchStart, matchEnd).slice(0, 60);
-  const firstRect = matched[0]?.getBoundingClientRect();
-  // eslint-disable-next-line no-console
-  console.log("[tenancy] highlight", {
-    fieldPath: h.fieldPath,
-    value: h.value?.slice(0, 30),
-    matchedText,
-    matchLen: matchEnd - matchStart,
-    spans: matched.length,
-    firstSpanRect: firstRect && {
-      top: Math.round(firstRect.top),
-      left: Math.round(firstRect.left),
-      width: Math.round(firstRect.width),
-      height: Math.round(firstRect.height),
-    },
-  });
-
   matched[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /**
- * Normalize text: lowercase, alphanumerics only, runs of any other chars
- * collapse to a single space. Returns the normalized string AND a parallel
- * array mapping each char index in `norm` back to its source index in `s`.
+ * Normalize text: lowercase, alphanumerics only, other-char runs collapse
+ * to a single space. Returns the normalized string + a parallel array
+ * mapping each normalized char back to its source index in the original.
+ *
+ * This lets "(254) 235-8343", "(254)235-8343", and "(254)\n235-8343" all
+ * collapse to the same normalized form, then we map matches back to the
+ * original character ranges for highlighting.
  */
 function normalizeWithMap(s: string): { norm: string; origIdx: number[] } {
   const norm: string[] = [];
@@ -264,7 +245,6 @@ function normalizeWithMap(s: string): { norm: string; origIdx: number[] } {
       lastWasSpace = true;
     }
   }
-  // Drop trailing space if present
   if (norm.length > 0 && norm[norm.length - 1] === " ") {
     norm.pop();
     origIdx.pop();
@@ -272,92 +252,21 @@ function normalizeWithMap(s: string): { norm: string; origIdx: number[] } {
   return { norm: norm.join(""), origIdx };
 }
 
-function findValueMatch(
+/**
+ * Find one exact normalized occurrence of `needle` in `norm`. Returns the
+ * range in original (un-normalized) coordinates, or null if no match
+ * meets the floor length.
+ */
+function exactNormalizedMatch(
   norm: string,
   origIdx: number[],
-  value: string | null,
-  snippet: string,
-): [number, number] | null {
-  if (!value) return null;
-  const { norm: needle } = normalizeWithMap(value);
-  if (needle.length < 3) return null; // too generic
-
-  // Collect all occurrences in normalized space
-  const occurrences: number[] = [];
-  let scan = 0;
-  while (true) {
-    const i = norm.indexOf(needle, scan);
-    if (i < 0) break;
-    occurrences.push(i);
-    scan = i + 1;
-  }
-
-  if (occurrences.length === 0) {
-    // Value doesn't appear cleanly; try longest substring against the value
-    return findLongestSubstringNorm(norm, origIdx, needle, 4);
-  }
-
-  // Single match → done. Multi-match → disambiguate by snippet context.
-  const chosen =
-    occurrences.length === 1
-      ? occurrences[0]
-      : pickByContext(norm, occurrences, needle.length, snippet);
-  return [origIdx[chosen], origIdx[chosen + needle.length - 1] + 1];
-}
-
-function findSnippetMatch(
-  norm: string,
-  origIdx: number[],
-  snippet: string,
-): [number, number] | null {
-  if (!snippet) return null;
-  const { norm: needle } = normalizeWithMap(snippet);
-  return findLongestSubstringNorm(norm, origIdx, needle, 12);
-}
-
-function findLongestSubstringNorm(
-  norm: string,
-  origIdx: number[],
-  needle: string,
+  needle: string | null,
   floor: number,
 ): [number, number] | null {
-  if (needle.length < floor) return null;
-  for (let len = needle.length; len >= floor; len--) {
-    for (let s = 0; s + len <= needle.length; s++) {
-      const idx = norm.indexOf(needle.slice(s, s + len));
-      if (idx >= 0) return [origIdx[idx], origIdx[idx + len - 1] + 1];
-    }
-  }
-  return null;
-}
-
-function pickByContext(
-  norm: string,
-  occurrences: number[],
-  matchLen: number,
-  snippet: string,
-): number {
-  if (!snippet) return occurrences[0];
-  const { norm: snippetNorm } = normalizeWithMap(snippet);
-  const tokens = snippetNorm.split(" ").filter((t) => t.length >= 4);
-  if (tokens.length === 0) return occurrences[0];
-
-  const RADIUS = 250;
-  let best = occurrences[0];
-  let bestScore = -1;
-  for (const o of occurrences) {
-    const window = norm.slice(
-      Math.max(0, o - RADIUS),
-      Math.min(norm.length, o + matchLen + RADIUS),
-    );
-    const score = tokens.reduce(
-      (acc, t) => acc + (window.includes(t) ? 1 : 0),
-      0,
-    );
-    if (score > bestScore) {
-      bestScore = score;
-      best = o;
-    }
-  }
-  return best;
+  if (!needle) return null;
+  const { norm: n } = normalizeWithMap(needle);
+  if (n.length < floor) return null;
+  const idx = norm.indexOf(n);
+  if (idx < 0) return null;
+  return [origIdx[idx], origIdx[idx + n.length - 1] + 1];
 }
