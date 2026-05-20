@@ -9,6 +9,21 @@ const SUGGESTED_QUESTIONS = [
   "Any flagged exceptions?",
 ];
 
+// 5xx → backend / LLM failure (e.g. Haiku truncating its JSON output
+// mid-string). 4xx → bad request. Anything else → unclassified.
+function friendlyError(raw: string): { headline: string; detail: string } {
+  if (/^5\d\d /.test(raw)) {
+    return {
+      headline: "The model had trouble answering that — try again.",
+      detail: raw,
+    };
+  }
+  if (/^4\d\d /.test(raw)) {
+    return { headline: "Couldn’t ask that question.", detail: raw };
+  }
+  return { headline: "Something went wrong.", detail: raw };
+}
+
 export function QAPanel({
   leaseId,
   onCitationClick,
@@ -17,6 +32,7 @@ export function QAPanel({
   onCitationClick: (h: FieldHighlight) => void;
 }) {
   const [question, setQuestion] = useState("");
+  const [lastQuestion, setLastQuestion] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<QAResponse | null>(null);
@@ -24,6 +40,7 @@ export function QAPanel({
   const submit = async (q: string) => {
     const trimmed = q.trim();
     if (!trimmed || loading) return;
+    setLastQuestion(trimmed);
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -102,10 +119,26 @@ export function QAPanel({
           role="alert"
           className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300"
         >
-          <p className="font-medium">Couldn’t answer that.</p>
-          <p className="mt-1 break-words font-mono text-xs opacity-80">
-            {error}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-medium">{friendlyError(error).headline}</p>
+            {lastQuestion && (
+              <button
+                type="button"
+                onClick={() => submit(lastQuestion)}
+                className="flex-shrink-0 rounded border border-red-300 px-2 py-0.5 text-xs font-medium hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900/30"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs opacity-70 hover:opacity-100">
+              Technical detail
+            </summary>
+            <p className="mt-1 break-words font-mono text-xs opacity-80">
+              {friendlyError(error).detail}
+            </p>
+          </details>
         </div>
       )}
 
