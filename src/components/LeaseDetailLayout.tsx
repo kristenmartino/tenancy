@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { ExtractionView } from "@/components/Extraction";
+import { ExceptionRow } from "@/components/ExceptionRow";
 import { PdfViewer } from "@/components/PdfViewerLoader";
 import { QAPanel } from "@/components/QAPanel";
-import { SeverityBadge } from "@/components/StatusBadge";
-import type { Exception, FieldHighlight, Lease } from "@/lib/api";
+import type { Exception, Extraction, FieldHighlight, Lease } from "@/lib/api";
 
 export function LeaseDetailLayout({
   lease,
@@ -70,25 +70,14 @@ export function LeaseDetailLayout({
           ) : (
             <ul className="space-y-3">
               {exceptions.map((exc) => (
-                <li
+                <ExceptionRow
                   key={exc.exception_id}
-                  className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800"
-                >
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <SeverityBadge severity={exc.severity} />
-                    <code className="text-xs text-gray-600 dark:text-gray-400">
-                      {exc.field_path}
-                    </code>
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    {exc.description}
-                  </p>
-                  {exc.suggested_action && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      Suggested: {exc.suggested_action}
-                    </p>
+                  exception={exc}
+                  initialEditValue={getValueAtPath(
+                    lease.extraction,
+                    exc.field_path,
                   )}
-                </li>
+                />
               ))}
             </ul>
           )}
@@ -96,4 +85,29 @@ export function LeaseDetailLayout({
       </div>
     </div>
   );
+}
+
+// Resolve a field_path like "parties[0].name" or "property.street_address"
+// down to the extracted value at that path. Returns "" when the path doesn't
+// resolve — used to prefill the edit input.
+function getValueAtPath(
+  extraction: Extraction | null,
+  path: string,
+): string {
+  if (!extraction) return "";
+  const parts = path.split(/\.|\[|\]/).filter(Boolean);
+  let cur: unknown = extraction;
+  for (const part of parts) {
+    if (cur == null || typeof cur !== "object") return "";
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  const value =
+    cur && typeof cur === "object" && "value" in cur
+      ? (cur as { value: unknown }).value
+      : cur;
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.join(", ");
+  return "";
 }
