@@ -125,3 +125,18 @@ export const queryLease = (id: string, question: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question }),
   });
+
+export type ResolveAction = "approve" | "edit" | "reject";
+
+export const resolveException = (
+  id: string,
+  action: ResolveAction,
+  correction?: Record<string, unknown>,
+) =>
+  fetchJSON<Exception>(`/exceptions/${id}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      correction !== undefined ? { action, correction } : { action },
+    ),
+  });
