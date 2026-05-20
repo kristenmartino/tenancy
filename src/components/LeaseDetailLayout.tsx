@@ -41,6 +41,13 @@ export function LeaseDetailLayout({
       <div className="space-y-6">
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Q&amp;A
+          </h2>
+          <QAPanel leaseId={lease.lease_id} onCitationClick={setHighlight} />
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Extraction
           </h2>
           {lease.extraction ? (
@@ -85,13 +92,6 @@ export function LeaseDetailLayout({
               ))}
             </ul>
           )}
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Q&amp;A
-          </h2>
-          <QAPanel leaseId={lease.lease_id} onCitationClick={setHighlight} />
         </section>
       </div>
     </div>
