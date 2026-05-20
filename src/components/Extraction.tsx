@@ -301,6 +301,7 @@ function FieldRow({
       page: field.source.page_number,
       snippet: field.source.snippet,
       fieldPath,
+      value: stringifyValue(field.value),
     });
   };
 
@@ -353,6 +354,15 @@ function ConfidenceBadge({ value }: { value: number }) {
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
+
+function stringifyValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.join(", ");
+  return null;
+}
 
 function humanize(key: string): string {
   return key

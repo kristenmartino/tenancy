@@ -20,6 +20,11 @@ export type FieldHighlight = {
   page: number;
   snippet: string;
   fieldPath: string;
+  // The field's extracted value as a string, if any. Used by the
+  // highlighter to match verbatim text in the PDF (often more reliable
+  // than the LLM's "supporting" snippet, which can paraphrase or include
+  // surrounding context).
+  value: string | null;
 };
 
 export type Party = {
