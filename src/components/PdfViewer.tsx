@@ -194,16 +194,16 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
   }
   const lower = pageText.toLowerCase();
 
-  // Strategy: try matching the field's VALUE first ("1621 James Ave",
-  // "(254) 235-8343", "$25.00"). The value is verbatim from the
-  // extraction, so when it appears in the page it's almost certainly the
-  // right spot. Fall back to the LLM's snippet only if value is null or
-  // short — snippets often paraphrase or include surrounding context that
-  // matches the wrong region (e.g., a section heading several lines above
-  // the actual value).
-  let matchRange = h.value && h.value.length >= 4
-    ? findLongestSubstring(lower, h.value.toLowerCase(), 4)
-    : null;
+  // Strategy: find the field VALUE in the page, but when it occurs in
+  // multiple places (e.g., "Apartments" mentioned both at the top and in
+  // section 1), pick the occurrence whose surrounding text best matches
+  // the snippet's context. Fall back to the LLM's snippet only if value
+  // is missing — snippets often paraphrase or include surrounding
+  // context that matches a section heading.
+  let matchRange =
+    h.value && h.value.length >= 4
+      ? findValueWithSnippetContext(lower, h.value.toLowerCase(), h.snippet)
+      : null;
   if (!matchRange && h.snippet) {
     matchRange = findLongestSubstring(lower, h.snippet.toLowerCase(), 12);
   }
@@ -212,7 +212,7 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
   console.log("[tenancy] highlight", {
     fieldPath: h.fieldPath,
     value: h.value?.slice(0, 30),
-    matched: matchRange ? "value" : h.snippet ? "snippet/none" : "none",
+    matched: matchRange ? (h.value ? "value-in-context" : "snippet") : "none",
     matchLen: matchRange ? matchRange[1] - matchRange[0] : 0,
   });
 
@@ -247,4 +247,67 @@ function findLongestSubstring(
     }
   }
   return null;
+}
+
+/**
+ * Find occurrences of `value` in `haystack`. If multiple matches exist,
+ * disambiguate by scoring each match's surrounding window against
+ * distinctive tokens pulled from `snippet`. The occurrence with the most
+ * snippet-context tokens nearby wins.
+ *
+ * This fixes the "wrong instance" bug: when the value is a generic word
+ * like "Apartments" or "1621" that appears multiple times on a page, plain
+ * indexOf would always pick the first occurrence, which often isn't the
+ * one the extraction was actually referring to.
+ */
+function findValueWithSnippetContext(
+  haystack: string,
+  value: string,
+  snippet?: string,
+): [number, number] | null {
+  if (value.length < 4) return null;
+
+  // Collect every occurrence
+  const occurrences: number[] = [];
+  let scanFrom = 0;
+  while (true) {
+    const idx = haystack.indexOf(value, scanFrom);
+    if (idx < 0) break;
+    occurrences.push(idx);
+    scanFrom = idx + 1;
+  }
+
+  if (occurrences.length === 0) {
+    // Value doesn't appear verbatim; fall back to longest-substring search
+    return findLongestSubstring(haystack, value, 4);
+  }
+  if (occurrences.length === 1 || !snippet) {
+    return [occurrences[0], occurrences[0] + value.length];
+  }
+
+  // Score each occurrence by how many distinctive snippet tokens appear
+  // in a window around it.
+  const tokens = snippet
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z0-9]/g, ""))
+    .filter((t) => t.length >= 4);
+
+  const RADIUS = 250; // chars around the match to consider as "context"
+  let bestIdx = occurrences[0];
+  let bestScore = -1;
+  for (const occ of occurrences) {
+    const start = Math.max(0, occ - RADIUS);
+    const end = Math.min(haystack.length, occ + value.length + RADIUS);
+    const window = haystack.slice(start, end);
+    const score = tokens.reduce(
+      (acc, t) => acc + (window.includes(t) ? 1 : 0),
+      0,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = occ;
+    }
+  }
+  return [bestIdx, bestIdx + value.length];
 }
