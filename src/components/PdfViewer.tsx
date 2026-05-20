@@ -171,46 +171,6 @@ function clearHighlights(root: HTMLElement) {
     .forEach((el) => el.classList.remove("tenancy-highlight"));
 }
 
-// Pull "distinctive" tokens from the snippet: words ≥4 chars that aren't
-// stopwords. These are much more reliable to match than prefix substrings,
-// because PDF.js chunks text by runs (often per-word) and word order can
-// shift relative to what pypdf extracted.
-const STOPWORDS = new Set([
-  "the",
-  "and",
-  "for",
-  "with",
-  "shall",
-  "this",
-  "that",
-  "from",
-  "into",
-  "upon",
-  "such",
-  "your",
-  "their",
-  "have",
-  "been",
-  "will",
-  "any",
-  "all",
-  "any",
-  "lease",
-  "tenant",
-  "landlord",
-  "agreement",
-  "rent",
-  "term",
-]);
-
-function distinctiveTokens(snippet: string): string[] {
-  return normalize(snippet)
-    .split(/\s+/)
-    .map((w) => w.replace(/[^a-z0-9]/g, ""))
-    .filter((w) => w.length >= 4 && !STOPWORDS.has(w))
-    .slice(0, 8);
-}
-
 function applyHighlight(root: HTMLElement, snippet: string) {
   // react-pdf historically used .react-pdf__Page__textContent; pdfjs-dist
   // adds .textLayer. Try both, then fall back to the whole container.
@@ -219,70 +179,59 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     root.querySelector(".react-pdf__Page__textContent") ||
     root;
 
-  const spans = layer.querySelectorAll<HTMLElement>("span");
-  const needle = normalize(snippet);
-  if (needle.length < 3) return;
+  const allSpans = Array.from(layer.querySelectorAll<HTMLElement>("span"));
+  if (!snippet || allSpans.length === 0) return;
 
-  const tokens = distinctiveTokens(snippet);
-  // Fallback prefix-based candidates in case tokens are too few.
-  const prefixes = [
-    needle.slice(0, 30),
-    needle.slice(0, 18),
-    needle.slice(0, 10),
-    needle.slice(0, 6),
-  ].filter((c) => c.length >= 4);
+  // Build the page text by concatenating spans in document order, while
+  // tracking which character range belongs to which span. This is the
+  // foundation for "find the snippet's substring in the page, then highlight
+  // only the spans that overlap that range" — vs the old token-by-token
+  // approach that would light up every span containing any common word.
+  let pageText = "";
+  const ranges: Array<{ span: HTMLElement; start: number; end: number }> = [];
+  for (const span of allSpans) {
+    const text = span.textContent ?? "";
+    if (!text) continue;
+    ranges.push({ span, start: pageText.length, end: pageText.length + text.length });
+    pageText += `${text} `;
+  }
+  const lower = pageText.toLowerCase();
+  const lowerSnippet = snippet.toLowerCase();
 
-  const sampleTexts: string[] = [];
-  const matches: HTMLElement[] = [];
-  spans.forEach((span) => {
-    const text = normalize(span.textContent || "");
-    if (text.length < 2) return;
-    if (sampleTexts.length < 5) sampleTexts.push(text.slice(0, 30));
-    const cleanedText = text.replace(/[^a-z0-9 ]/g, " ");
-    const hit =
-      // Distinctive-token match (preferred)
-      tokens.some(
-        (t) =>
-          cleanedText.includes(t) ||
-          cleanedText.split(/\s+/).some((w) => w === t),
-      ) ||
-      // Prefix-substring fallback
-      prefixes.some((c) => text.includes(c) || c.includes(text));
-    if (hit) {
-      span.classList.add("tenancy-highlight");
-      matches.push(span);
+  // Find the longest substring of the snippet that appears in the page text.
+  // Walks down from full length toward a 12-char floor. The 12-char floor
+  // is what stops common short words ("Lease", "Texas") from matching
+  // everywhere — anything shorter is likely a false positive.
+  let matchStart = -1;
+  let matchEnd = -1;
+  for (let len = lowerSnippet.length; len >= 12; len--) {
+    for (let s = 0; s + len <= lowerSnippet.length; s++) {
+      const idx = lower.indexOf(lowerSnippet.slice(s, s + len));
+      if (idx >= 0) {
+        matchStart = idx;
+        matchEnd = idx + len;
+        break;
+      }
     }
-  });
+    if (matchStart >= 0) break;
+  }
 
-  // Full diagnostic so we can see what's actually in the DOM if matching
-  // continues to fail (different react-pdf 10 text-layer structure?).
-  const allElements = root.querySelectorAll("*");
-  const tagCounts: Record<string, number> = {};
-  allElements.forEach((el) => {
-    tagCounts[el.tagName.toLowerCase()] =
-      (tagCounts[el.tagName.toLowerCase()] || 0) + 1;
-  });
-  // Deeper diagnostic: dump the text layer's own innerHTML so we can see
-  // what PDF.js actually emitted into it (or whether it's empty).
-  const layerInnerHTML =
-    layer instanceof Element ? layer.innerHTML.slice(0, 400) : "(no layer)";
   // eslint-disable-next-line no-console
   console.log("[tenancy] highlight", {
-    snippet: snippet.slice(0, 60),
-    layerFound: layer !== root,
-    layerClass: layer instanceof Element ? layer.className : "(none)",
-    spans: spans.length,
-    matches: matches.length,
-    tokens,
-    sampleSpanTexts: sampleTexts,
-    rootChildElementCount: root.childElementCount,
-    tagCounts,
-    layerChildren: layer instanceof Element ? layer.children.length : 0,
-    layerInnerHTML,
-    classListSample: Array.from(allElements)
-      .slice(0, 30)
-      .map((el) => `${el.tagName.toLowerCase()}.${el.className || "(no class)"}`),
+    snippet: snippet.slice(0, 50),
+    spans: allSpans.length,
+    matchLen: matchStart >= 0 ? matchEnd - matchStart : 0,
   });
 
-  matches[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (matchStart < 0) return;
+
+  // Highlight every span whose range overlaps the matched substring.
+  const matched: HTMLElement[] = [];
+  for (const { span, start, end } of ranges) {
+    if (end > matchStart && start < matchEnd) {
+      span.classList.add("tenancy-highlight");
+      matched.push(span);
+    }
+  }
+  matched[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
