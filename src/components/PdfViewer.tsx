@@ -11,6 +11,16 @@ import type { FieldHighlight } from "@/lib/api";
 // (cdnjs lags by a few releases — was missing 5.4.296).
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+// PDF.js needs cmap files to decode CIDFonts used by ocrmypdf and many
+// other PDF generators. Without cMapUrl, canvas rendering still works
+// (so you see the page), but text extraction produces nothing — which
+// is why our OCR'd PDFs were producing empty text layers.
+const PDF_OPTIONS = {
+  cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+};
+
 export function PdfViewer({
   url,
   highlight,
@@ -99,6 +109,7 @@ export function PdfViewer({
         ) : (
           <Document
             file={url}
+            options={PDF_OPTIONS}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
             onLoadError={(err) => setError(err.message)}
             loading={<p className="text-sm text-gray-500">Loading PDF…</p>}
