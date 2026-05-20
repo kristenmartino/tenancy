@@ -56,7 +56,7 @@ export function PdfViewer({
     const t = setTimeout(() => {
       if (!containerRef.current) return;
       clearHighlights(containerRef.current);
-      applyHighlight(containerRef.current, highlight.snippet);
+      applyHighlight(containerRef.current, highlight);
     }, 50);
     return () => clearTimeout(t);
   }, [highlight, pageNumber]);
@@ -68,7 +68,7 @@ export function PdfViewer({
     clearHighlights(containerRef.current);
     const h = highlightRef.current;
     if (h?.snippet) {
-      applyHighlight(containerRef.current, h.snippet);
+      applyHighlight(containerRef.current, h);
     }
   }
 
@@ -171,7 +171,7 @@ function clearHighlights(root: HTMLElement) {
     .forEach((el) => el.classList.remove("tenancy-highlight"));
 }
 
-function applyHighlight(root: HTMLElement, snippet: string) {
+function applyHighlight(root: HTMLElement, h: FieldHighlight) {
   // react-pdf historically used .react-pdf__Page__textContent; pdfjs-dist
   // adds .textLayer. Try both, then fall back to the whole container.
   const layer =
@@ -180,13 +180,10 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     root;
 
   const allSpans = Array.from(layer.querySelectorAll<HTMLElement>("span"));
-  if (!snippet || allSpans.length === 0) return;
+  if (allSpans.length === 0) return;
 
-  // Build the page text by concatenating spans in document order, while
-  // tracking which character range belongs to which span. This is the
-  // foundation for "find the snippet's substring in the page, then highlight
-  // only the spans that overlap that range" — vs the old token-by-token
-  // approach that would light up every span containing any common word.
+  // Build the page text by concatenating spans in document order, tracking
+  // which character range belongs to which span.
   let pageText = "";
   const ranges: Array<{ span: HTMLElement; start: number; end: number }> = [];
   for (const span of allSpans) {
@@ -196,36 +193,32 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     pageText += `${text} `;
   }
   const lower = pageText.toLowerCase();
-  const lowerSnippet = snippet.toLowerCase();
 
-  // Find the longest substring of the snippet that appears in the page text.
-  // Walks down from full length toward a 12-char floor. The 12-char floor
-  // is what stops common short words ("Lease", "Texas") from matching
-  // everywhere — anything shorter is likely a false positive.
-  let matchStart = -1;
-  let matchEnd = -1;
-  for (let len = lowerSnippet.length; len >= 12; len--) {
-    for (let s = 0; s + len <= lowerSnippet.length; s++) {
-      const idx = lower.indexOf(lowerSnippet.slice(s, s + len));
-      if (idx >= 0) {
-        matchStart = idx;
-        matchEnd = idx + len;
-        break;
-      }
-    }
-    if (matchStart >= 0) break;
+  // Strategy: try matching the field's VALUE first ("1621 James Ave",
+  // "(254) 235-8343", "$25.00"). The value is verbatim from the
+  // extraction, so when it appears in the page it's almost certainly the
+  // right spot. Fall back to the LLM's snippet only if value is null or
+  // short — snippets often paraphrase or include surrounding context that
+  // matches the wrong region (e.g., a section heading several lines above
+  // the actual value).
+  let matchRange = h.value && h.value.length >= 4
+    ? findLongestSubstring(lower, h.value.toLowerCase(), 4)
+    : null;
+  if (!matchRange && h.snippet) {
+    matchRange = findLongestSubstring(lower, h.snippet.toLowerCase(), 12);
   }
 
   // eslint-disable-next-line no-console
   console.log("[tenancy] highlight", {
-    snippet: snippet.slice(0, 50),
-    spans: allSpans.length,
-    matchLen: matchStart >= 0 ? matchEnd - matchStart : 0,
+    fieldPath: h.fieldPath,
+    value: h.value?.slice(0, 30),
+    matched: matchRange ? "value" : h.snippet ? "snippet/none" : "none",
+    matchLen: matchRange ? matchRange[1] - matchRange[0] : 0,
   });
 
-  if (matchStart < 0) return;
+  if (!matchRange) return;
+  const [matchStart, matchEnd] = matchRange;
 
-  // Highlight every span whose range overlaps the matched substring.
   const matched: HTMLElement[] = [];
   for (const { span, start, end } of ranges) {
     if (end > matchStart && start < matchEnd) {
@@ -234,4 +227,24 @@ function applyHighlight(root: HTMLElement, snippet: string) {
     }
   }
   matched[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/**
+ * Find the longest contiguous substring of `needle` that appears in
+ * `haystack`. Returns [start, end) in haystack coordinates, or null if
+ * no match meets the floor length.
+ */
+function findLongestSubstring(
+  haystack: string,
+  needle: string,
+  floor: number,
+): [number, number] | null {
+  if (needle.length < floor) return null;
+  for (let len = needle.length; len >= floor; len--) {
+    for (let s = 0; s + len <= needle.length; s++) {
+      const idx = haystack.indexOf(needle.slice(s, s + len));
+      if (idx >= 0) return [idx, idx + len];
+    }
+  }
+  return null;
 }
