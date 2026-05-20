@@ -152,18 +152,9 @@ function PagerButton({
 }
 
 // ---------------------------------------------------------------------------
-// Highlight matching
-//
-// PDF.js renders each text run as a positioned <span> inside .textLayer.
-// A logical snippet from the extractor (which used pypdf's per-page text)
-// usually spans many of these — different fonts, line breaks, and word
-// boundaries each cause a split. We do a loose match: normalize the snippet,
-// look for runs whose normalized text overlaps with it, and tint those.
+// Highlight matching — see normalizeWithMap + applyHighlight below.
 // ---------------------------------------------------------------------------
 
-function normalize(s: string): string {
-  return s.toLowerCase().replace(/[\s ]+/g, " ").trim();
-}
 
 function clearHighlights(root: HTMLElement) {
   root
@@ -183,7 +174,7 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
   if (allSpans.length === 0) return;
 
   // Build the page text by concatenating spans in document order, tracking
-  // which character range belongs to which span.
+  // which character range in pageText belongs to which span.
   let pageText = "";
   const ranges: Array<{ span: HTMLElement; start: number; end: number }> = [];
   for (const span of allSpans) {
@@ -192,31 +183,28 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
     ranges.push({ span, start: pageText.length, end: pageText.length + text.length });
     pageText += `${text} `;
   }
-  const lower = pageText.toLowerCase();
 
-  // Strategy: try matching the field's VALUE first ("1621 James Ave",
-  // "(254) 235-8343", "$25.00"). The value is verbatim from the
-  // extraction, so when it appears in the page it's almost certainly the
-  // right spot. Fall back to the LLM's snippet only if value is null or
-  // short — snippets often paraphrase or include surrounding context that
-  // matches the wrong region (e.g., a section heading several lines above
-  // the actual value).
-  let matchRange = h.value && h.value.length >= 4
-    ? findLongestSubstring(lower, h.value.toLowerCase(), 4)
-    : null;
-  if (!matchRange && h.snippet) {
-    matchRange = findLongestSubstring(lower, h.snippet.toLowerCase(), 12);
+  // Build a normalized version (lowercase + alphanumerics-and-single-spaces)
+  // with a map back to original pageText positions. Match in normalized
+  // space — that way "(254) 235-8343", "(254)235-8343", and "(254)\n235-8343"
+  // all collapse to the same string. Then map the match back to original
+  // coordinates so we can highlight the right spans.
+  const { norm, origIdx } = normalizeWithMap(pageText);
+
+  // Try the field's value first (verbatim from extraction), fall back to
+  // the LLM's snippet.
+  const matchRange =
+    findValueMatch(norm, origIdx, h.value, h.snippet) ??
+    findSnippetMatch(norm, origIdx, h.snippet);
+
+  if (!matchRange) {
+    // eslint-disable-next-line no-console
+    console.log("[tenancy] highlight: NO MATCH", {
+      fieldPath: h.fieldPath,
+      value: h.value?.slice(0, 30),
+    });
+    return;
   }
-
-  // eslint-disable-next-line no-console
-  console.log("[tenancy] highlight", {
-    fieldPath: h.fieldPath,
-    value: h.value?.slice(0, 30),
-    matched: matchRange ? "value" : h.snippet ? "snippet/none" : "none",
-    matchLen: matchRange ? matchRange[1] - matchRange[0] : 0,
-  });
-
-  if (!matchRange) return;
   const [matchStart, matchEnd] = matchRange;
 
   const matched: HTMLElement[] = [];
@@ -226,25 +214,150 @@ function applyHighlight(root: HTMLElement, h: FieldHighlight) {
       matched.push(span);
     }
   }
+
+  // Diagnostic — includes the matched chunk's actual text and the first
+  // matched span's bounding rect, so if the matcher is picking the right
+  // text but the highlight appears in the wrong visual place, we'll see
+  // the discrepancy in console.
+  const matchedText = pageText.slice(matchStart, matchEnd).slice(0, 60);
+  const firstRect = matched[0]?.getBoundingClientRect();
+  // eslint-disable-next-line no-console
+  console.log("[tenancy] highlight", {
+    fieldPath: h.fieldPath,
+    value: h.value?.slice(0, 30),
+    matchedText,
+    matchLen: matchEnd - matchStart,
+    spans: matched.length,
+    firstSpanRect: firstRect && {
+      top: Math.round(firstRect.top),
+      left: Math.round(firstRect.left),
+      width: Math.round(firstRect.width),
+      height: Math.round(firstRect.height),
+    },
+  });
+
   matched[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /**
- * Find the longest contiguous substring of `needle` that appears in
- * `haystack`. Returns [start, end) in haystack coordinates, or null if
- * no match meets the floor length.
+ * Normalize text: lowercase, alphanumerics only, runs of any other chars
+ * collapse to a single space. Returns the normalized string AND a parallel
+ * array mapping each char index in `norm` back to its source index in `s`.
  */
-function findLongestSubstring(
-  haystack: string,
+function normalizeWithMap(s: string): { norm: string; origIdx: number[] } {
+  const norm: string[] = [];
+  const origIdx: number[] = [];
+  let lastWasSpace = true;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    const isAlnum =
+      (c >= 48 && c <= 57) ||
+      (c >= 65 && c <= 90) ||
+      (c >= 97 && c <= 122);
+    if (isAlnum) {
+      norm.push(s[i].toLowerCase());
+      origIdx.push(i);
+      lastWasSpace = false;
+    } else if (!lastWasSpace) {
+      norm.push(" ");
+      origIdx.push(i);
+      lastWasSpace = true;
+    }
+  }
+  // Drop trailing space if present
+  if (norm.length > 0 && norm[norm.length - 1] === " ") {
+    norm.pop();
+    origIdx.pop();
+  }
+  return { norm: norm.join(""), origIdx };
+}
+
+function findValueMatch(
+  norm: string,
+  origIdx: number[],
+  value: string | null,
+  snippet: string,
+): [number, number] | null {
+  if (!value) return null;
+  const { norm: needle } = normalizeWithMap(value);
+  if (needle.length < 3) return null; // too generic
+
+  // Collect all occurrences in normalized space
+  const occurrences: number[] = [];
+  let scan = 0;
+  while (true) {
+    const i = norm.indexOf(needle, scan);
+    if (i < 0) break;
+    occurrences.push(i);
+    scan = i + 1;
+  }
+
+  if (occurrences.length === 0) {
+    // Value doesn't appear cleanly; try longest substring against the value
+    return findLongestSubstringNorm(norm, origIdx, needle, 4);
+  }
+
+  // Single match → done. Multi-match → disambiguate by snippet context.
+  const chosen =
+    occurrences.length === 1
+      ? occurrences[0]
+      : pickByContext(norm, occurrences, needle.length, snippet);
+  return [origIdx[chosen], origIdx[chosen + needle.length - 1] + 1];
+}
+
+function findSnippetMatch(
+  norm: string,
+  origIdx: number[],
+  snippet: string,
+): [number, number] | null {
+  if (!snippet) return null;
+  const { norm: needle } = normalizeWithMap(snippet);
+  return findLongestSubstringNorm(norm, origIdx, needle, 12);
+}
+
+function findLongestSubstringNorm(
+  norm: string,
+  origIdx: number[],
   needle: string,
   floor: number,
 ): [number, number] | null {
   if (needle.length < floor) return null;
   for (let len = needle.length; len >= floor; len--) {
     for (let s = 0; s + len <= needle.length; s++) {
-      const idx = haystack.indexOf(needle.slice(s, s + len));
-      if (idx >= 0) return [idx, idx + len];
+      const idx = norm.indexOf(needle.slice(s, s + len));
+      if (idx >= 0) return [origIdx[idx], origIdx[idx + len - 1] + 1];
     }
   }
   return null;
+}
+
+function pickByContext(
+  norm: string,
+  occurrences: number[],
+  matchLen: number,
+  snippet: string,
+): number {
+  if (!snippet) return occurrences[0];
+  const { norm: snippetNorm } = normalizeWithMap(snippet);
+  const tokens = snippetNorm.split(" ").filter((t) => t.length >= 4);
+  if (tokens.length === 0) return occurrences[0];
+
+  const RADIUS = 250;
+  let best = occurrences[0];
+  let bestScore = -1;
+  for (const o of occurrences) {
+    const window = norm.slice(
+      Math.max(0, o - RADIUS),
+      Math.min(norm.length, o + matchLen + RADIUS),
+    );
+    const score = tokens.reduce(
+      (acc, t) => acc + (window.includes(t) ? 1 : 0),
+      0,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = o;
+    }
+  }
+  return best;
 }
