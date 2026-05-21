@@ -2,11 +2,33 @@ const BASE =
   process.env.NEXT_PUBLIC_TENANCY_API_BASE ||
   "https://tenancy-api-production.up.railway.app";
 
+export type BoundingBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type SourceMatchType =
+  | "filled"      // value is typed/printed in a writable space
+  | "blank"       // labeled placeholder with no value filled in
+  | "inferred"    // value implied by surrounding prose
+  | "checkbox"    // value decided from a checked/unchecked box
+  | "absent";     // document doesn't address this field at all
+
 export type SourceSpan = {
   page_number: number;
   char_start: number;
   char_end: number;
   snippet: string;
+  match_type: SourceMatchType;
+  section_label: string | null;
+  // Per-line highlight rects (PDF QuadPoints model). Derived server-side
+  // from the OCR'd PDF's word positions; empty array = no overlay.
+  bboxes: BoundingBox[];
+  // DEPRECATED single-rect form, kept for one schema cycle so older DB
+  // rows still deserialize. New extractions populate `bboxes` instead.
+  bbox?: BoundingBox | null;
 };
 
 export type ExtractedField<T = unknown> = {
@@ -18,13 +40,10 @@ export type ExtractedField<T = unknown> = {
 
 export type FieldHighlight = {
   page: number;
-  snippet: string;
   fieldPath: string;
-  // The field's extracted value as a string, if any. Used by the
-  // highlighter to match verbatim text in the PDF (often more reliable
-  // than the LLM's "supporting" snippet, which can paraphrase or include
-  // surrounding context).
-  value: string | null;
+  // Per-line highlight rects from the OCR-anchored backend derivation.
+  // Empty = no overlay, just navigate to the page.
+  bboxes: BoundingBox[];
 };
 
 export type Party = {

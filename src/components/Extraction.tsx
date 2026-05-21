@@ -297,11 +297,20 @@ function FieldRow({
 
   const handleClick = () => {
     if (!clickable || !field.source) return;
+    // Prefer `bboxes` (per-line array from OCR-anchored backend). Fall back
+    // to legacy single `bbox` for any DB rows still on the old schema —
+    // drop the fallback in a cleanup PR after a clean re-extract.
+    const src = field.source;
+    const bboxes =
+      src.bboxes && src.bboxes.length > 0
+        ? src.bboxes
+        : src.bbox
+          ? [src.bbox]
+          : [];
     onClick?.({
-      page: field.source.page_number,
-      snippet: field.source.snippet,
+      page: src.page_number,
       fieldPath,
-      value: stringifyValue(field.value),
+      bboxes,
     });
   };
 
@@ -354,15 +363,6 @@ function ConfidenceBadge({ value }: { value: number }) {
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
-
-function stringifyValue(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.join(", ");
-  return null;
-}
 
 function humanize(key: string): string {
   return key
