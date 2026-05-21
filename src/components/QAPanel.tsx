@@ -66,10 +66,12 @@ export function QAPanel({
 
   const handleCitationClick = (citation: QAResponse["citations"][number]) => {
     if (citation.page_number == null) return;
+    // Q&A citations come from the Q&A response shape which doesn't carry
+    // bbox coords — only page + snippet. Page-jump only, no overlay.
     onCitationClick({
       page: citation.page_number,
       fieldPath: citation.field_path,
-      bbox: null,
+      bboxes: [],
     });
   };
 

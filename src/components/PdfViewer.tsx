@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
-import type { FieldHighlight } from "@/lib/api";
+import type { BoundingBox, FieldHighlight } from "@/lib/api";
 
 // Worker from unpkg matching the bundled pdfjs-dist version exactly.
 // unpkg proxies npm directly, so any published version is available
@@ -34,9 +34,9 @@ export function PdfViewer({
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [overlay, setOverlay] = useState<OverlayRect | null>(null);
+  const [overlays, setOverlays] = useState<OverlayRect[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const firstOverlayRef = useRef<HTMLDivElement>(null);
   const renderedSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   // When a highlight arrives, jump to that page (if different).
@@ -46,50 +46,56 @@ export function PdfViewer({
     }
   }, [highlight, pageNumber]);
 
-  const computeOverlay = useCallback(() => {
+  const computeOverlays = useCallback(() => {
     const size = renderedSizeRef.current;
     const container = containerRef.current;
     const canvas = container?.querySelector<HTMLCanvasElement>(
       ".react-pdf__Page__canvas",
     );
     if (
-      !highlight?.bbox ||
+      !highlight ||
       highlight.page !== pageNumber ||
+      highlight.bboxes.length === 0 ||
       !size ||
       !canvas ||
       !container
     ) {
-      setOverlay(null);
+      setOverlays([]);
       return;
     }
     const cRect = container.getBoundingClientRect();
     const kRect = canvas.getBoundingClientRect();
     const offsetLeft = kRect.left - cRect.left + container.scrollLeft;
     const offsetTop = kRect.top - cRect.top + container.scrollTop;
-    setOverlay({
-      left: offsetLeft + highlight.bbox.x * size.width,
-      top: offsetTop + highlight.bbox.y * size.height,
-      width: highlight.bbox.width * size.width,
-      height: highlight.bbox.height * size.height,
-    });
+    setOverlays(
+      highlight.bboxes.map((bbox: BoundingBox) => ({
+        left: offsetLeft + bbox.x * size.width,
+        top: offsetTop + bbox.y * size.height,
+        width: bbox.width * size.width,
+        height: bbox.height * size.height,
+      })),
+    );
   }, [highlight, pageNumber]);
 
   useEffect(() => {
-    computeOverlay();
-  }, [computeOverlay]);
+    computeOverlays();
+  }, [computeOverlays]);
 
   useEffect(() => {
-    if (overlay && overlayRef.current) {
-      overlayRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (overlays.length > 0 && firstOverlayRef.current) {
+      firstOverlayRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
     }
-  }, [overlay]);
+  }, [overlays]);
 
   // react-pdf hands us a PageCallback with width/height at the rendered
-  // scale. Stash them so we can derive pixel coords for the bbox overlay
+  // scale. Stash them so we can derive pixel coords for the bbox overlays
   // (canvas may briefly mount before its width/height are settled).
   const onPageRenderSuccess = (page: { width: number; height: number }) => {
     renderedSizeRef.current = { width: page.width, height: page.height };
-    computeOverlay();
+    computeOverlays();
   };
 
   return (
@@ -149,18 +155,14 @@ export function PdfViewer({
           </Document>
         )}
 
-        {overlay && (
+        {overlays.map((rect, i) => (
           <div
-            ref={overlayRef}
+            key={i}
+            ref={i === 0 ? firstOverlayRef : undefined}
             className="tenancy-bbox-overlay pointer-events-none absolute"
-            style={{
-              left: overlay.left,
-              top: overlay.top,
-              width: overlay.width,
-              height: overlay.height,
-            }}
+            style={rect}
           />
-        )}
+        ))}
       </div>
     </div>
   );

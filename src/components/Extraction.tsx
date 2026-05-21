@@ -297,10 +297,20 @@ function FieldRow({
 
   const handleClick = () => {
     if (!clickable || !field.source) return;
+    // Prefer `bboxes` (per-line array from OCR-anchored backend). Fall back
+    // to legacy single `bbox` for any DB rows still on the old schema —
+    // drop the fallback in a cleanup PR after a clean re-extract.
+    const src = field.source;
+    const bboxes =
+      src.bboxes && src.bboxes.length > 0
+        ? src.bboxes
+        : src.bbox
+          ? [src.bbox]
+          : [];
     onClick?.({
-      page: field.source.page_number,
+      page: src.page_number,
       fieldPath,
-      bbox: field.source.bbox,
+      bboxes,
     });
   };
 

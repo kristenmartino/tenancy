@@ -1,14 +1,14 @@
 # Status
 
-> **Active focus:** bbox overlay v2 just shipped ([#14](https://github.com/kristenmartino/tenancy/issues/14)) — text-layer matcher gone, click-to-highlight drives off `source.bbox` from the backend. Last `Next 3` item is the demo recording.
+> **Active focus:** v2 highlight pivoted from LLM-emitted bboxes to OCR-anchored derivation (mirrors backend [tenancy-api#26](https://github.com/kristenmartino/tenancy-api/pull/26)). Sonnet's bbox accuracy hit a 3-8% positional ceiling on filled values + section-header drift on blank-template fields; research across docTR / Surya / PaddleOCR / Textract / Mindee / Landing.AI converged on the same pattern (OCR-first for geometry, model-second for semantics). Backend now strips bbox from Sonnet's contract and derives per-line rects from pdfplumber's word positions. Frontend renders an array of overlays (PDF QuadPoints model). Demo recording is the last item.
 
 > **Open question:** none in flight.
 
 ## Next 3
 
-1. **[#1]** Interactive exception resolve UI (approve / edit / reject) — ✅ shipped ([#16](https://github.com/kristenmartino/tenancy/pull/16))
-2. **[#2]** Q&A panel using existing `/leases/{id}/query` endpoint — ✅ shipped
-3. **[tenancy-api#2]** Record 60-90s demo video for the case study — `now` `effort-day`
+1. **[#14]** Bbox overlay pivot — per-line array renderer over OCR-anchored backend coords. Supersedes [#18](https://github.com/kristenmartino/tenancy/pull/18) and [#20](https://github.com/kristenmartino/tenancy/pull/20).
+2. **[tenancy-api#2]** Record 60-90s demo video for the case study — `now` `effort-day`
+3. **[#3]** Re-verify click-to-highlight end-to-end on a freshly uploaded lease post-pivot.
 
 ## Later
 
@@ -17,7 +17,7 @@
 - **Better empty / loading / error states** across the board
 - **Multi-tenant theming** (organization branding, custom colors)
 - **Re-extraction diff view**
-- **[tenancy-api#17]** v3 highlight: AWS Textract for production-grade bbox accuracy (~99%). Promote when the vision-bbox approach (~80%) is the bottleneck.
+- **[tenancy-api#17]** v3 highlight: AWS Textract for production-grade checkbox/signature geometry. Promote when the OCR-anchored path's coverage gap (visual-only fields) bottlenecks the demo.
 
 ## Blocked on
 
@@ -25,8 +25,8 @@ Nothing in flight.
 
 ## Recent decisions
 
-- **Bbox overlay v2** ([#14](https://github.com/kristenmartino/tenancy/issues/14)) — removed the text-layer matcher (normalize-map fuzzy search, span-tinting, the 12+ heuristic iterations) and the PDF.js text layer + cmap config that fed it. On click, the viewer reads `source.bbox` (normalized 0-1 coords from Sonnet vision) and renders an absolutely-positioned overlay over the page canvas at the bbox's pixel rect. Falls back to page-jump-only when bbox is missing (old leases, Q&A citations). Production-grade accuracy is v3 (AWS Textract, [tenancy-api#17](https://github.com/kristenmartino/tenancy-api/issues/17)).
-- **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — replaced 12+ iterations of fuzzy text matching with exact-normalized-match only. Silent failures preferred over wrong-place highlights. Now superseded by bbox overlay v2 above.
+- **OCR-anchored bbox pivot (v2 architecture)** — first real test of Sonnet-emitted bboxes (the original v2) showed ~3-8% positional drift on filled values and Sonnet bboxing entire section headers when the field was a blank-template placeholder. Research across docTR / Surya / PaddleOCR / unstructured / Textract / Mindee / Landing.AI converged unanimously: OCR-first for geometry, model-second for semantics. Donut, the only mainstream system that asks the model to emit coords from a raster, has a documented ~11.5% hallucination rate. Backend now strips bbox from Sonnet's response contract; Sonnet returns `{value, snippet, page_number, match_type, section_label}`; backend aligns snippet against pdfplumber's word positions and emits one `BoundingBox` per line (PDF QuadPoints model — what Adobe/Mendeley do). Frontend: `FieldHighlight.bbox` → `bboxes: BoundingBox[]`; PdfViewer renders an array of absolutely-positioned overlay divs, one per line. The old single-bbox renderer (PR [#18](https://github.com/kristenmartino/tenancy/pull/18), parallel session's PR [#20](https://github.com/kristenmartino/tenancy/pull/20)) is superseded. Checkbox geometry deferred to a Textract follow-up — match_type=checkbox returns empty `bboxes` for now (page navigates, no overlay).
+- **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — 12+ iterations of fuzzy text matching, retreated to exact-normalized-match only. Now fully superseded by the OCR-anchored backend approach.
 - **Cache-bust PDF URL with `?v={updated_at}` + `key={updated_at}` on PdfViewer** — fixed the cached-404 problem where react-pdf wouldn't retry after the initial pending-state load failed.
 - **`Cache-Control: no-store` on backend 404s** — companion fix so browsers don't cache transient 404s during the pending window.
 - **Graceful error boundary on every server-side fetch** — prevents Vercel's generic 500 page from appearing on transient backend hiccups.
