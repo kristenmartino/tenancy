@@ -46,13 +46,24 @@ export default async function HomePage() {
           </p>
         ) : (
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-800">
-            <table className="w-full text-sm">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[88px] sm:w-[110px]" />
+                <col />
+                <col className="w-[44px] sm:w-[120px]" />
+                <col className="hidden sm:table-column sm:w-[180px]" />
+              </colgroup>
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Source</th>
-                  <th className="px-4 py-2 font-medium">Exceptions</th>
-                  <th className="px-4 py-2 font-medium">Created</th>
+                  <th className="px-3 py-2 font-medium sm:px-4">Status</th>
+                  <th className="px-3 py-2 font-medium sm:px-4">Source</th>
+                  <th className="px-3 py-2 text-right font-medium sm:px-4 sm:text-left">
+                    <span className="sm:hidden">Exc.</span>
+                    <span className="hidden sm:inline">Exceptions</span>
+                  </th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell sm:px-4">
+                    Created
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -61,19 +72,22 @@ export default async function HomePage() {
                     key={lease.lease_id}
                     className="border-t border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       <StatusBadge status={lease.status} />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="truncate px-3 py-3 sm:px-4">
                       <Link
                         href={`/leases/${lease.lease_id}`}
                         className="text-blue-600 hover:underline dark:text-blue-400"
+                        title={lease.pdf_url}
                       >
                         {hostnameOf(lease.pdf_url)}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">{lease.exception_count}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-3 py-3 text-right tabular-nums sm:px-4 sm:text-left">
+                      {lease.exception_count}
+                    </td>
+                    <td className="hidden truncate px-3 py-3 text-gray-500 sm:table-cell sm:px-4">
                       {new Date(lease.created_at).toLocaleString()}
                     </td>
                   </tr>

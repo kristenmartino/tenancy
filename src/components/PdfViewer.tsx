@@ -15,7 +15,11 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 // the text-matching highlighter).
 const PDF_OPTIONS = {};
 
-const PAGE_WIDTH_PX = 520;
+// Max rendered page width. Below this, the page scales down to fit the
+// container (mobile). Above this, the page caps at MAX so single-page reads
+// stay comfortable on wide desktops.
+const PAGE_MAX_WIDTH_PX = 520;
+const PAGE_CONTAINER_PADDING_X = 24; // matches p-3 (12px each side)
 
 type OverlayRect = {
   left: number;
@@ -35,9 +39,27 @@ export function PdfViewer({
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<OverlayRect[]>([]);
+  const [pageWidth, setPageWidth] = useState<number>(PAGE_MAX_WIDTH_PX);
   const containerRef = useRef<HTMLDivElement>(null);
   const firstOverlayRef = useRef<HTMLDivElement>(null);
   const renderedSizeRef = useRef<{ width: number; height: number } | null>(null);
+
+  // Track the container's clientWidth so the PDF page scales to fit the
+  // available space. Caps at PAGE_MAX_WIDTH_PX so it doesn't blow up on
+  // wide desktops; on phones / tablets it shrinks to fit.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const measure = () => {
+      const available = node.clientWidth - PAGE_CONTAINER_PADDING_X;
+      const next = Math.max(280, Math.min(PAGE_MAX_WIDTH_PX, available));
+      setPageWidth(next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
 
   // When a highlight arrives, jump to that page (if different).
   useEffect(() => {
@@ -146,7 +168,7 @@ export function PdfViewer({
           >
             <Page
               pageNumber={pageNumber}
-              width={PAGE_WIDTH_PX}
+              width={pageWidth}
               renderTextLayer={false}
               renderAnnotationLayer={false}
               onRenderSuccess={onPageRenderSuccess}
