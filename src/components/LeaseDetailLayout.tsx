@@ -55,8 +55,22 @@ export function LeaseDetailLayout({
               extraction={lease.extraction}
               onFieldClick={setHighlight}
             />
+          ) : lease.status === "pending" ? (
+            <p className="text-sm text-gray-500">
+              Extraction in progress. Fields will populate here when the
+              pipeline finishes (typically ~25s for a 20-page lease).
+            </p>
+          ) : lease.status === "extract_failed" ||
+            lease.status === "ingest_failed" ||
+            lease.status === "pipeline_failed" ? (
+            <p className="text-sm text-gray-500">
+              Extraction didn&apos;t complete — see the error above the source
+              link. The pipeline can sometimes recover on re-upload.
+            </p>
           ) : (
-            <p className="text-sm text-gray-500">No extraction yet.</p>
+            <p className="text-sm text-gray-500">
+              No extraction available for this lease.
+            </p>
           )}
         </section>
 
