@@ -34,7 +34,9 @@ export function ExtractionView({
           </span>
         </span>
         <span>·</span>
-        <span>
+        <span
+          title="Unweighted mean of every extracted field's confidence. Field-level confidence is the model's self-reported certainty; a field flagged as an exception still contributes its (low) value to this average."
+        >
           overall confidence:{" "}
           <span className="font-mono text-gray-700 dark:text-gray-300">
             {(extraction.overall_confidence * 100).toFixed(0)}%
@@ -353,8 +355,13 @@ function ConfidenceBadge({ value }: { value: number }) {
       : value >= 0.7
         ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
         : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+  const band =
+    value >= 0.85 ? "high" : value >= 0.7 ? "medium" : "low";
   return (
-    <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${color}`}>
+    <span
+      className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${color}`}
+      title={`Model's self-reported confidence in this value: ${(value * 100).toFixed(0)}% (${band}). Bands: green ≥85%, yellow ≥70%, red <70%. Values ≥99% are not chipped.`}
+    >
       {(value * 100).toFixed(0)}%
     </span>
   );
