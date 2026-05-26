@@ -44,7 +44,7 @@ The repo only stays coherent if docs move with code.
 - `src/app/error.tsx` — route-level error boundary (Next.js convention)
 - `src/components/LeaseDetailLayout.tsx` — `"use client"`, holds shared state (e.g. PDF highlight target) for the detail page
 - `src/components/Extraction.tsx` — `"use client"`, renders the structured field cards with click-to-highlight
-- `src/components/PdfViewer.tsx` + `PdfViewerLoader.tsx` — `"use client"`, PDF.js wrapper with text-layer matching (loader dynamic-imports to avoid SSR)
+- `src/components/PdfViewer.tsx` + `PdfViewerLoader.tsx` — `"use client"`, PDF.js wrapper with bbox-overlay renderer (multi-rect per-line, driven by `bboxes: BoundingBox[]` from the backend; loader dynamic-imports to avoid SSR)
 - `src/components/UploadForm.tsx` — `"use client"`, two-tab form for URL paste or file upload
 - `src/components/StatusBadge.tsx` — small status/severity pills
 - `src/lib/api.ts` — typed fetch wrappers over the API (single source of truth for `NEXT_PUBLIC_TENANCY_API_BASE`)

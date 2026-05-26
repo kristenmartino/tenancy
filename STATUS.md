@@ -1,23 +1,23 @@
 # Status
 
-> **Active focus:** v2 highlight pivoted from LLM-emitted bboxes to OCR-anchored derivation (mirrors backend [tenancy-api#26](https://github.com/kristenmartino/tenancy-api/pull/26)). Sonnet's bbox accuracy hit a 3-8% positional ceiling on filled values + section-header drift on blank-template fields; research across docTR / Surya / PaddleOCR / Textract / Mindee / Landing.AI converged on the same pattern (OCR-first for geometry, model-second for semantics). Backend now strips bbox from Sonnet's contract and derives per-line rects from pdfplumber's word positions. Frontend renders an array of overlays (PDF QuadPoints model). Demo recording is the last item.
+> **Active focus:** V2 highlight (OCR-anchored bbox overlay) **shipped and production-verified** end-to-end ([tenancy#18](https://github.com/kristenmartino/tenancy/pull/18) + backend [tenancy-api#26](https://github.com/kristenmartino/tenancy-api/pull/26)). Per-line `bboxes` array from pdfplumber alignment; multi-rect renderer in `PdfViewer.tsx`. Filled fields pixel-tight, multi-line values Word-style, blank-template fields anchored on the labeled blank line. Highlight saga closed. Only V0 item remaining: record the 60-90s demo. Case study is the deliverable; productize gates explicitly out of scope.
 
 > **Open question:** none in flight.
 
 ## Next 3
 
-1. **[#14]** Bbox overlay pivot — per-line array renderer over OCR-anchored backend coords. Supersedes [#18](https://github.com/kristenmartino/tenancy/pull/18) and [#20](https://github.com/kristenmartino/tenancy/pull/20).
-2. **[tenancy-api#2]** Record 60-90s demo video for the case study — `now` `effort-day`
-3. **[#3]** Re-verify click-to-highlight end-to-end on a freshly uploaded lease post-pivot.
+1. **[tenancy-api#2]** Record 60-90s demo video for the case study (`effort-day`) — final V0 item. Backend + frontend feature-complete; bbox overlay production-verified.
+2. **Demo-prep polish** (`effort-day`) — mobile-first layout pass (side-by-side breaks below ~900px), empty / loading / error states consistent across the demo path, confidence-chip tooltip.
+3. **README + case-study writeup pass** (`effort-day`) — methodology section: the bbox pivot narrative (Sonnet emission → OCR alignment), eval observations, links to the PRs that document the reasoning.
 
 ## Later
 
-- **Mobile-first layout pass** — side-by-side breaks below ~900px today
 - **Bulk operations** on the lease list (approve-all, filter by status)
-- **Better empty / loading / error states** across the board
 - **Multi-tenant theming** (organization branding, custom colors)
 - **Re-extraction diff view**
-- **[tenancy-api#17]** v3 highlight: AWS Textract for production-grade checkbox/signature geometry. Promote when the OCR-anchored path's coverage gap (visual-only fields) bottlenecks the demo.
+- **[tenancy-api#17]** v3 highlight: AWS Textract `SELECTION_ELEMENT` for checkbox/signature geometry. Promote only when a customer demands it — current "missing > wrong" behavior on those field classes is the documented design call.
+
+_(Mobile-first layout pass + empty / loading / error states promoted into the demo-prep polish item in Next 3.)_
 
 ## Blocked on
 
@@ -25,6 +25,7 @@ Nothing in flight.
 
 ## Recent decisions
 
+- **Bbox overlay v2 production-verified** ([#18](https://github.com/kristenmartino/tenancy/pull/18) + [tenancy-api#26](https://github.com/kristenmartino/tenancy-api/pull/26)) — OCR-anchored per-line bboxes verified end-to-end on fresh lease `45314996` (2026-05-21): `property.street_address` lands pixel-tight on the "at 1621 James Ave Waco, Texas 76706" line at `y≈0.93`, `parties[1].address` renders as 2 stacked rects (Word-style multi-line), `rent.base_monthly_rent` (blank-template) shows 3 rects on the labeled blank line rather than the section header. User confirmed live: "everything highlighted is correct. some things don't highlight." The missing-highlight cases (checkboxes, signatures, hand-fill) fall under the deferred Textract v3 path, not a renderer issue. The 12+ matcher-iteration + LLM-bbox detour saga is closed.
 - **OCR-anchored bbox pivot (v2 architecture)** — first real test of Sonnet-emitted bboxes (the original v2) showed ~3-8% positional drift on filled values and Sonnet bboxing entire section headers when the field was a blank-template placeholder. Research across docTR / Surya / PaddleOCR / unstructured / Textract / Mindee / Landing.AI converged unanimously: OCR-first for geometry, model-second for semantics. Donut, the only mainstream system that asks the model to emit coords from a raster, has a documented ~11.5% hallucination rate. Backend now strips bbox from Sonnet's response contract; Sonnet returns `{value, snippet, page_number, match_type, section_label}`; backend aligns snippet against pdfplumber's word positions and emits one `BoundingBox` per line (PDF QuadPoints model — what Adobe/Mendeley do). Frontend: `FieldHighlight.bbox` → `bboxes: BoundingBox[]`; PdfViewer renders an array of absolutely-positioned overlay divs, one per line. The old single-bbox renderer (PR [#18](https://github.com/kristenmartino/tenancy/pull/18), parallel session's PR [#20](https://github.com/kristenmartino/tenancy/pull/20)) is superseded. Checkbox geometry deferred to a Textract follow-up — match_type=checkbox returns empty `bboxes` for now (page navigates, no overlay).
 - **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — 12+ iterations of fuzzy text matching, retreated to exact-normalized-match only. Now fully superseded by the OCR-anchored backend approach.
 - **Resolve endpoint actions are now distinct** ([tenancy-api#22](https://github.com/kristenmartino/tenancy-api/issues/22)) — pre-change, all three of `approve | edit | reject` were pure metadata on the exception row; nothing read `BLOCKING` downstream and `edit` never rewrote `lease.extraction`. Now: `edit` walks the extraction JSON to `exc.field_path` and replaces the leaf `.value` (confidence bumped to 1.0); `approve` clears the blocker without touching the extraction; `reject` closes the row but keeps the blocking flag material via a derived `ready_to_proceed: bool` returned on every lease (`status == "complete"` AND no blocking exception unresolved-or-rejected). Typed `Correction(value, note?)` model so the frontend's `{"value": "<text>"}` payload is validated instead of stored as opaque dict. Deferred: re-running `validate_extraction` after an edit (e.g. user fixes `end_date` to something that still violates the date-order rule) — would need to surface new exceptions in the resolve response, bigger UX shape, revisit if it bites.
@@ -41,7 +42,7 @@ Nothing in flight.
 
 ## Velocity
 
-Settling into v2 polish. Backend and frontend interactivity both feature-complete for V0. Remaining V0 work is the bbox-overlay pivot landing end-to-end, then demo recording.
+V0 is feature-complete. Bbox overlay v2 shipped and production-verified. Only remaining V0 item is the demo recording itself; after that, the case-study deliverable is done. Productize gates (auth, eval set, queue, observability) explicitly deferred.
 
 ## Audience class
 
@@ -49,7 +50,7 @@ Portfolio / case study now. Productizing optional second phase if the demo lands
 
 ## Repos
 
-- Backend + MCP: this repo (`kristenmartino/tenancy-api`)
-- Frontend: [`kristenmartino/tenancy`](https://github.com/kristenmartino/tenancy)
+- Frontend: this repo (`kristenmartino/tenancy`, Next.js 16 on Vercel)
+- Backend + MCP: [`kristenmartino/tenancy-api`](https://github.com/kristenmartino/tenancy-api) (FastAPI on Railway)
 
-Both deploy independently (Railway for backend, Vercel for frontend). STATUS.md and CLAUDE.md are mirrored to the frontend repo. Shared user-level Project board: https://github.com/users/kristenmartino/projects/2 — spans both repos so cross-repo deps (e.g. tenancy#14 ↔ tenancy-api#16 for v2 highlights) are visible in one view.
+Both deploy independently. STATUS.md mirrors between the two repos with framing differences. Shared user-level Project board: https://github.com/users/kristenmartino/projects/2 — spans both repos so cross-repo work (e.g. v2 highlights = tenancy#14 + tenancy-api#16) is visible in one view.
