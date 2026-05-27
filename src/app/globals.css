@@ -38,3 +38,125 @@ body {
   0%   { background-color: rgba(250, 204, 21, 0.7); }
   100% { background-color: rgba(250, 204, 21, 0.35); }
 }
+
+/* ---------------------------------------------------------------------------
+ * Print stylesheet — turns the lease detail page into a portable abstract.
+ *
+ * Hides: source PDF panel, Q&A panel, exception-row buttons, page nav,
+ *   back link, dark-mode tints. Forces a single column on letter paper.
+ *
+ * Keep: header (lease id + status + source URL), extraction fields with
+ *   confidence chips and source page numbers, exception list (read-only).
+ *
+ * Use: open a lease detail page → Cmd+P → "Save as PDF" → portable artifact.
+ * --------------------------------------------------------------------------- */
+@media print {
+  /* Light mode forced. Tailwind's dark variants would otherwise leak. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  /* The visible page chrome that doesn't belong in a print artifact. */
+  .tenancy-pdf-viewer,
+  .tenancy-no-print {
+    display: none !important;
+  }
+
+  /* Force the lease detail layout into a single column. The grid wrapper
+     uses `lg:grid-cols-2`; print is its own breakpoint that wins. */
+  .tenancy-detail-grid {
+    display: block !important;
+  }
+  .tenancy-detail-grid > section,
+  .tenancy-detail-grid > div {
+    position: static !important;
+  }
+
+  /* Page-break hints — only keep individual field rows from splitting
+     across pages. Section cards (Parties, Property, Term…) are too tall
+     to keep whole, so we let them break and only protect field rows. */
+  dl > div {
+    page-break-inside: avoid;
+  }
+  h2,
+  section header,
+  section section header {
+    page-break-after: avoid;
+  }
+
+  /* Tighten spacing for paper. Defaults are screen-spacious. */
+  body {
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+  section {
+    margin-bottom: 0.5rem !important;
+  }
+  .space-y-6 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  .space-y-3 > * + * {
+    margin-top: 0.25rem !important;
+  }
+  .py-2 {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .p-4, .p-3 {
+    padding: 0.5rem !important;
+  }
+  .mb-3, .mb-4 {
+    margin-bottom: 0.5rem !important;
+  }
+  .mt-3, .mt-4 {
+    margin-top: 0.5rem !important;
+  }
+
+  /* Backgrounds and shadows don't print cleanly — flatten them. */
+  .bg-gray-50,
+  .bg-gray-900,
+  .bg-blue-50,
+  .bg-blue-900\/20,
+  .bg-red-50,
+  .bg-red-900\/20,
+  .bg-yellow-100,
+  .bg-yellow-900\/40,
+  .bg-green-100,
+  .bg-green-900\/40,
+  .hover\:bg-gray-50:hover,
+  .hover\:bg-gray-900:hover {
+    background: transparent !important;
+  }
+  .shadow-sm,
+  .shadow {
+    box-shadow: none !important;
+  }
+
+  /* Border styling — keep the section dividers but lighten them. */
+  .border,
+  .border-gray-200,
+  .border-gray-800 {
+    border-color: #d1d5db !important;
+  }
+
+  /* Link styling — drop hover underlines, keep the colour subtle. */
+  a {
+    color: #1f2937 !important;
+    text-decoration: none !important;
+  }
+
+  /* Headings get a touch more weight on paper. */
+  h1, h2 {
+    color: #000000 !important;
+  }
+
+  /* Confidence chips stay visible but flatten their backgrounds. */
+  span[title^="Model's self-reported"] {
+    background: transparent !important;
+    border: 1px solid #9ca3af !important;
+    color: #111827 !important;
+  }
+}
+

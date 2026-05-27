@@ -34,7 +34,7 @@ export default async function LeasePage({
     <div className="space-y-6">
       <Link
         href="/"
-        className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+        className="tenancy-no-print text-sm text-blue-600 hover:underline dark:text-blue-400"
       >
         ← back
       </Link>

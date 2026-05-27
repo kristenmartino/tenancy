@@ -140,7 +140,7 @@ export function ExceptionRow({
       )}
 
       {!editing && !resolved && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="tenancy-no-print mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => submit("approve")}

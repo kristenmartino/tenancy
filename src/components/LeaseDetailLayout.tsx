@@ -26,8 +26,8 @@ export function LeaseDetailLayout({
   const pdfUrlWithCacheBust = `${pdfUrl}?v=${encodeURIComponent(lease.updated_at)}`;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <section className="lg:sticky lg:top-6 lg:self-start">
+    <div className="tenancy-detail-grid grid gap-6 lg:grid-cols-2">
+      <section className="tenancy-no-print lg:sticky lg:top-6 lg:self-start">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
           Source PDF
         </h2>
@@ -39,7 +39,7 @@ export function LeaseDetailLayout({
       </section>
 
       <div className="space-y-6">
-        <section>
+        <section className="tenancy-no-print">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Q&amp;A
           </h2>
