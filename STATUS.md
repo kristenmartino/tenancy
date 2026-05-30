@@ -6,9 +6,11 @@
 
 ## Next 3
 
-1. **[tenancy-api#2]** Record 60-90s demo video for the case study (`effort-day`) — final V0 item. Backend + frontend feature-complete; bbox overlay production-verified.
-2. **Demo-prep polish** (`effort-day`) — mobile-first layout pass (side-by-side breaks below ~900px), empty / loading / error states consistent across the demo path, confidence-chip tooltip.
-3. **README + case-study writeup pass** (`effort-day`) — methodology section: the bbox pivot narrative (Sonnet emission → OCR alignment), eval observations, links to the PRs that document the reasoning.
+1. **[tenancy-api#2]** Record the 60-90s main SaaS demo (`effort-day`) — script ready at [`docs/demo-script.md`](docs/demo-script.md). The last open V0 item.
+2. **Record the 30s MCP bonus clip + tools screenshot** (`effort-hour`) — script at `tenancy-api/docs/demo-mcp.md`; capture `mcp-tools.png` from Claude Desktop.
+3. **Wire the recorded assets into both READMEs** (`effort-hour`) — drop in `demo.mp4` / `demo-mcp.mp4` / `mcp-tools.png`, replace the "forthcoming" pointers, and flip these items closed.
+
+_(Demo-prep polish and the README/case-study writeup pass already shipped — see Recent decisions.)_
 
 ## Later
 
@@ -25,6 +27,7 @@ Nothing in flight.
 
 ## Recent decisions
 
+- **Demo-prep polish + writeup pass shipped** — mobile-first responsive PDF viewer and lease table (verified 375 / 768 / 1280), a `not-found` page plus status-aware extraction empty states, confidence-chip tooltips, and a print stylesheet that exports a clean one-page abstract (`docs/sample-abstract.pdf`). READMEs refreshed on both repos (stale "v1 roadmap" dropped; demos section + MCP cross-links added). What remains of the old Next 3 is only the recordings themselves.
 - **Bbox overlay v2 production-verified** ([#18](https://github.com/kristenmartino/tenancy/pull/18) + [tenancy-api#26](https://github.com/kristenmartino/tenancy-api/pull/26)) — OCR-anchored per-line bboxes verified end-to-end on fresh lease `45314996` (2026-05-21): `property.street_address` lands pixel-tight on the "at 1621 James Ave Waco, Texas 76706" line at `y≈0.93`, `parties[1].address` renders as 2 stacked rects (Word-style multi-line), `rent.base_monthly_rent` (blank-template) shows 3 rects on the labeled blank line rather than the section header. User confirmed live: "everything highlighted is correct. some things don't highlight." The missing-highlight cases (checkboxes, signatures, hand-fill) fall under the deferred Textract v3 path, not a renderer issue. The 12+ matcher-iteration + LLM-bbox detour saga is closed.
 - **OCR-anchored bbox pivot (v2 architecture)** — first real test of Sonnet-emitted bboxes (the original v2) showed ~3-8% positional drift on filled values and Sonnet bboxing entire section headers when the field was a blank-template placeholder. Research across docTR / Surya / PaddleOCR / unstructured / Textract / Mindee / Landing.AI converged unanimously: OCR-first for geometry, model-second for semantics. Donut, the only mainstream system that asks the model to emit coords from a raster, has a documented ~11.5% hallucination rate. Backend now strips bbox from Sonnet's response contract; Sonnet returns `{value, snippet, page_number, match_type, section_label}`; backend aligns snippet against pdfplumber's word positions and emits one `BoundingBox` per line (PDF QuadPoints model — what Adobe/Mendeley do). Frontend: `FieldHighlight.bbox` → `bboxes: BoundingBox[]`; PdfViewer renders an array of absolutely-positioned overlay divs, one per line. The old single-bbox renderer (PR [#18](https://github.com/kristenmartino/tenancy/pull/18), parallel session's PR [#20](https://github.com/kristenmartino/tenancy/pull/20)) is superseded. Checkbox geometry deferred to a Textract follow-up — match_type=checkbox returns empty `bboxes` for now (page navigates, no overlay).
 - **Strict highlight matcher v1** ([#13](https://github.com/kristenmartino/tenancy/pull/13)) — 12+ iterations of fuzzy text matching, retreated to exact-normalized-match only. Now fully superseded by the OCR-anchored backend approach.
