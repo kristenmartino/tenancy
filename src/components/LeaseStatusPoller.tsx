@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { getLease } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 3000;
@@ -21,19 +21,19 @@ export function LeaseStatusPoller({
   currentStatus: string;
 }) {
   const router = useRouter();
-  const startedAt = useRef(Date.now());
 
   useEffect(() => {
-    if (currentStatus !== "pending") return;
+    if (!["pending", "ingested", "extracted", "validated"].includes(currentStatus)) return;
 
+    const startedAt = Date.now();
     const interval = setInterval(async () => {
-      if (Date.now() - startedAt.current > POLL_TIMEOUT_MS) {
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
         clearInterval(interval);
         return;
       }
       try {
         const lease = await getLease(leaseId);
-        if (lease.status !== "pending") {
+        if (lease.status !== currentStatus) {
           clearInterval(interval);
           router.refresh();
         }

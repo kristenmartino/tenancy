@@ -5,9 +5,7 @@ export default function NotFound() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Lease not found</h1>
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        Nothing at this lease ID. It may have been deleted, the link may be
-        stale, or the URL may have a typo. Lease IDs are UUIDs — copy/paste
-        errors are easy.
+        This lease is unavailable. Return to the list to choose a lease.
       </p>
       <Link
         href="/"

@@ -1,32 +1,19 @@
-const COLORS: Record<string, string> = {
-  complete: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  ingested: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  extracted: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  validated: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  ingest_failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  extract_failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+const LABELS: Record<string, string> = {
+  complete: "Extraction complete", pending: "Extracting", ingested: "PDF received",
+  extracted: "Checking fields", validated: "Checks complete", ingest_failed: "PDF could not be read",
+  extract_failed: "Extraction failed", pipeline_failed: "Extraction failed",
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const color = COLORS[status] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-  return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${color}`}>
-      {status}
-    </span>
-  );
+  const color = status.endsWith("_failed")
+    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+    : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
+  return <span className={`inline-block rounded border px-2 py-1 text-xs font-medium ${color}`}>{LABELS[status] ?? "Status unavailable"}</span>;
 }
 
 export function SeverityBadge({ severity }: { severity: string }) {
-  const color =
-    severity === "blocking"
-      ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
-      : severity === "warning"
-        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
-        : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-  return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${color}`}>
-      {severity}
-    </span>
-  );
+  const color = severity === "blocking"
+    ? "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+    : "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200";
+  return <span className={`rounded px-2 py-1 text-xs font-medium ${color}`}>{severity === "blocking" ? "Blocking" : severity === "warning" ? "Check value" : "For review"}</span>;
 }

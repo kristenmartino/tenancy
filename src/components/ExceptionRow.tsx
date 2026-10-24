@@ -2,180 +2,84 @@
 
 import { useState } from "react";
 import { SeverityBadge } from "@/components/StatusBadge";
-import type { Exception, ResolveAction } from "@/lib/api";
-import { resolveException } from "@/lib/api";
+import { resolveException, type Exception, type ExtractedField, type FieldHighlight, type ResolveAction } from "@/lib/api";
+import { exceptionMessage, fieldPathLabel, formatFieldValue, fieldFormat, missingValueLabel } from "@/lib/presentation";
 
-export function ExceptionRow({
-  exception,
-  initialEditValue,
-}: {
+export function ExceptionRow({ exception, field, initialEditValue, source, onSourceClick, onResolved, disabled = false }: {
   exception: Exception;
+  field: ExtractedField | null;
   initialEditValue: string;
+  source: FieldHighlight | null;
+  onSourceClick: (source: FieldHighlight) => void;
+  onResolved: (updated: Exception) => Promise<void>;
+  disabled?: boolean;
 }) {
-  const [resolved, setResolved] = useState(exception.resolved);
-  const [resolution, setResolution] = useState<string | null>(
-    exception.resolution,
-  );
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(initialEditValue);
   const [pending, setPending] = useState<ResolveAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const busy = pending !== null || disabled;
+  const rejectedBlocker = exception.resolved && exception.resolution === "reject" && exception.severity === "blocking";
+  const correction = exception.correction?.value;
+  const resolutionLabel = exception.resolution === "edit" ? "Value corrected" : exception.resolution === "approve" ? "Value accepted" : "Value rejected";
 
-  async function submit(action: ResolveAction, correction?: string) {
-    // Optimistic: flip the row to resolved immediately, roll back on error.
-    const prevResolved = resolved;
-    const prevResolution = resolution;
-    setResolved(true);
-    setResolution(action);
+  async function submit(action: ResolveAction, value?: string) {
     setPending(action);
     setError(null);
     try {
-      await resolveException(
-        exception.exception_id,
-        action,
-        correction !== undefined ? { value: correction } : undefined,
-      );
+      const updated = await resolveException(exception.exception_id, action, value !== undefined ? { value } : undefined);
       setEditing(false);
-    } catch (err) {
-      setResolved(prevResolved);
-      setResolution(prevResolution);
-      setError(err instanceof Error ? err.message : String(err));
+      await onResolved(updated);
+    } catch {
+      setError("Could not save this decision. Try again.");
     } finally {
       setPending(null);
     }
   }
 
-  const muted = resolved && !pending;
-
   return (
-    <li
-      className={`rounded border border-gray-200 p-3 text-sm dark:border-gray-800 ${
-        muted ? "opacity-60" : ""
-      }`}
-    >
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <SeverityBadge severity={exception.severity} />
-        <code className="text-xs text-gray-600 dark:text-gray-400">
-          {exception.field_path}
-        </code>
-        {resolved && resolution && (
-          <span className="ml-auto flex items-center gap-2">
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              {resolution}
-            </span>
-            {!pending && (
-              <button
-                type="button"
-                onClick={() => {
-                  setResolved(false);
-                  setResolution(null);
-                  setError(null);
-                }}
-                // Local-only undo. Backend resolution persists; reloading the
-                // page will show the row resolved again.
-                title="Reopen in this view — backend resolution persists until backend reopen lands"
-                className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-              >
-                Reopen
-              </button>
-            )}
-          </span>
-        )}
+    <li className="border-b border-gray-200 py-4 first:pt-0 last:border-0 last:pb-0 dark:border-gray-800">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{fieldPathLabel(exception.field_path)}</h3>
+        {(!exception.resolved || rejectedBlocker) && <SeverityBadge severity={exception.severity} />}
       </div>
-      <p
-        className={`text-gray-700 dark:text-gray-300 ${
-          muted && resolution === "reject" ? "line-through" : ""
-        }`}
-      >
-        {exception.description}
-      </p>
-      {resolved && resolution === "edit" && editValue && !pending && (
-        <p className="mt-1 text-sm">
-          <span className="text-gray-500">→ corrected to </span>
-          <span className="font-mono font-medium text-gray-900 dark:text-gray-100">
-            {editValue}
-          </span>
-        </p>
-      )}
-      {exception.suggested_action && (
-        <p className="mt-2 text-xs text-gray-500">
-          Suggested: {exception.suggested_action}
-        </p>
-      )}
-
-      {editing && !resolved && (
-        <form
-          className="mt-3 flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit("edit", editValue);
-          }}
-        >
-          <input
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            autoFocus
-            className="flex-1 min-w-[10rem] rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900"
-          />
-          <button
-            type="submit"
-            disabled={pending !== null}
-            className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {pending === "edit" ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(false);
-              setEditValue(initialEditValue);
-            }}
-            disabled={pending !== null}
-            className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            Cancel
-          </button>
+      <p className="mt-2 break-words text-sm"><span className="text-gray-600 dark:text-gray-400">Extracted value: </span><span className="font-medium">{field ? field.value == null ? missingValueLabel(field) : formatFieldValue(field.value, fieldFormat(exception.field_path)) : "No extracted value available"}</span></p>
+      <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">{exceptionMessage(exception)}</p>
+      {exception.resolved && <p className="mt-2 text-sm font-medium">{resolutionLabel}{exception.resolution === "edit" && correction !== undefined && <>: <span className="break-words">{formatFieldValue(correction, fieldFormat(exception.field_path))}</span></>}</p>}
+      {rejectedBlocker && <p className="mt-2 text-sm text-red-800 dark:text-red-200">This rejected value remains a blocker.</p>}
+      <div className="tenancy-no-print mt-3 flex flex-wrap items-center gap-3">
+        {source ? <button type="button" onClick={() => onSourceClick(source)} className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-300">View source · p.{source.page}</button>
+          : <span className="text-xs text-gray-600 dark:text-gray-400">No source reference available</span>}
+        <details className="text-xs text-gray-600 dark:text-gray-400">
+          <summary className="cursor-pointer">Check details</summary>
+          <div className="mt-2 space-y-2 break-words">
+            <p>{exception.description}</p>
+            {exception.suggested_action && <p>{exception.suggested_action}</p>}
+            <p className="font-mono">{exception.field_path}</p>
+          </div>
+        </details>
+      </div>
+      {editing && !exception.resolved && (
+        <form className="tenancy-no-print mt-3 space-y-2" onSubmit={(event) => { event.preventDefault(); submit("edit", editValue); }}>
+          <label className="block text-sm font-medium" htmlFor={`correction-${exception.exception_id}`}>Corrected value</label>
+          <div className="flex flex-wrap gap-2">
+            <input id={`correction-${exception.exception_id}`} value={editValue} onChange={(event) => setEditValue(event.target.value)} autoFocus disabled={busy} className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" />
+            <button type="submit" disabled={busy || !editValue.trim()} className="rounded bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50">{pending === "edit" ? "Saving…" : "Save value"}</button>
+            <button type="button" disabled={busy} onClick={() => { setEditing(false); setEditValue(initialEditValue); }} className="rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700">Cancel</button>
+          </div>
         </form>
       )}
-
-      {!editing && !resolved && (
-        <div className="tenancy-no-print mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => submit("approve")}
-            disabled={pending !== null}
-            className="rounded border border-green-300 bg-green-50 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-100 disabled:opacity-50 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/30"
-          >
-            {pending === "approve" ? "Approving…" : "Approve"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditValue(initialEditValue);
-              setEditing(true);
-              setError(null);
-            }}
-            className="rounded border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => submit("reject")}
-            disabled={pending !== null}
-            className="rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
-          >
-            {pending === "reject" ? "Rejecting…" : "Reject"}
-          </button>
+      {!editing && !exception.resolved && (
+        <div className="tenancy-no-print mt-3">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={busy} onClick={() => submit("approve")} className="rounded border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-900">{pending === "approve" ? "Saving…" : "Accept value"}</button>
+            <button type="button" disabled={busy} onClick={() => { setEditing(true); setError(null); }} className="rounded bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50">Edit value</button>
+            <button type="button" disabled={busy} onClick={() => submit("reject")} className="rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-950">{pending === "reject" ? "Saving…" : "Reject value"}</button>
+          </div>
+          <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">Accept keeps the current value. {exception.severity === "blocking" ? "Reject keeps this item blocking." : "Reject records your decision without correcting the value."}</p>
         </div>
       )}
-
-      {error && (
-        <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <p role="alert" className="mt-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
     </li>
   );
 }

@@ -17,13 +17,12 @@ export default function Error({
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Something went wrong</h1>
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        The page failed to load. This is usually transient — a cold-start
-        timeout against the API or a slow database read.
+        This page could not load. Try again in a moment.
       </p>
-      <pre className="overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+      <details><summary className="cursor-pointer text-sm">Technical details</summary><pre className="overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
         {error.message}
         {error.digest && `\n\ndigest: ${error.digest}`}
-      </pre>
+      </pre></details>
       <button
         type="button"
         onClick={reset}

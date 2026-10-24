@@ -39,31 +39,33 @@ export function UploadForm() {
       className="rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
     >
       <div className="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        <TabButton active={mode === "url"} onClick={() => setMode("url")}>
-          URL
+        <TabButton active={mode === "url"} onClick={() => { setMode("url"); setError(null); }}>
+          PDF link
         </TabButton>
-        <TabButton active={mode === "file"} onClick={() => setMode("file")}>
+        <TabButton active={mode === "file"} onClick={() => { setMode("file"); setError(null); }}>
           Upload PDF
         </TabButton>
       </div>
 
       {mode === "url" ? (
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <input
             type="url"
+            aria-label="PDF link"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
             required
-            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+            className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
           />
           <SubmitButton disabled={!canSubmit} loading={loading} />
         </div>
       ) : (
-        <div className="flex gap-2">
-          <label className="flex-1 cursor-pointer">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="min-w-0 flex-1 cursor-pointer">
             <input
               type="file"
+              aria-label="Lease PDF"
               accept="application/pdf,.pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="block w-full rounded border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:file:bg-gray-800 dark:file:text-gray-300"
@@ -78,10 +80,9 @@ export function UploadForm() {
         </div>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <div role="alert" className="mt-3 text-sm text-red-800 dark:text-red-200"><p>Could not start extraction. Check the PDF and try again.</p><details className="mt-1 text-xs"><summary className="cursor-pointer">Technical details</summary><p className="mt-2 break-words">{error}</p></details></div>}
       <p className="mt-3 text-xs text-gray-500">
-        Returns immediately with a lease_id; extraction runs in the background
-        (~25s for a typical lease). The detail page reflects the final status.
+        Extraction runs in the background. Results appear on the next screen when ready.
       </p>
     </form>
   );
@@ -124,7 +125,7 @@ function SubmitButton({
       disabled={disabled}
       className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
     >
-      {loading ? "Submitting…" : "Extract"}
+      {loading ? "Starting…" : "Extract lease"}
     </button>
   );
 }

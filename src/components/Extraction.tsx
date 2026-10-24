@@ -7,10 +7,12 @@ import type {
   FieldHighlight,
   Party,
 } from "@/lib/api";
+import { fieldLabel, fieldHighlight, fieldNoteSummary, missingValueLabel, formatFieldValue } from "@/lib/presentation";
 
 // Pass the click handler through React Context instead of prop-drilling
 // through 4 layers of section / list / row components.
 const ClickContext = createContext<((h: FieldHighlight) => void) | null>(null);
+const CorrectedContext = createContext<string[]>([]);
 
 // ---------------------------------------------------------------------------
 // Top-level
@@ -19,31 +21,16 @@ const ClickContext = createContext<((h: FieldHighlight) => void) | null>(null);
 export function ExtractionView({
   extraction,
   onFieldClick,
+  correctedPaths = [],
 }: {
   extraction: Extraction;
   onFieldClick?: (h: FieldHighlight) => void;
+  correctedPaths?: string[];
 }) {
   return (
     <ClickContext.Provider value={onFieldClick ?? null}>
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-        <span>
-          template:{" "}
-          <span className="font-mono text-gray-700 dark:text-gray-300">
-            {extraction.template_detected}
-          </span>
-        </span>
-        <span>·</span>
-        <span
-          title="Unweighted mean of every extracted field's confidence. Field-level confidence is the model's self-reported certainty; a field flagged as an exception still contributes its (low) value to this average."
-        >
-          overall confidence:{" "}
-          <span className="font-mono text-gray-700 dark:text-gray-300">
-            {(extraction.overall_confidence * 100).toFixed(0)}%
-          </span>
-        </span>
-      </div>
-
+    <CorrectedContext.Provider value={correctedPaths}>
+    <div className="space-y-7">
       <SectionCard title="Parties">
         {extraction.parties.length === 0 ? (
           <p className="text-sm text-gray-500">No parties extracted.</p>
@@ -184,6 +171,7 @@ export function ExtractionView({
         />
       </SectionCard>
     </div>
+    </CorrectedContext.Provider>
     </ClickContext.Provider>
   );
 }
@@ -200,20 +188,20 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <header className="border-b border-gray-100 px-4 py-2 dark:border-gray-800">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+    <section className="border-t border-gray-200 pt-4 dark:border-gray-800">
+      <header className="mb-2">
+        <h3 className="text-base font-semibold">
           {title}
         </h3>
       </header>
-      <div className="px-4 py-3">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }
 
 function PartyBlock({ party, index }: { party: Party; index: number }) {
   return (
-    <div className="rounded border border-gray-100 p-3 dark:border-gray-800">
+    <div className="border-l-2 border-gray-200 pl-4 dark:border-gray-700">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
           {party.role}
@@ -272,7 +260,7 @@ function FieldList({
         return (
           <FieldRow
             key={key}
-            label={humanize(key)}
+            label={fieldLabel(key)}
             field={f}
             fieldPath={`${sectionPath}.${key}`}
             format={formats?.[key]}
@@ -295,109 +283,32 @@ function FieldRow({
   format?: FormatHint;
 }) {
   const onClick = useContext(ClickContext);
-  const clickable = !!field.source && !!onClick;
-
-  const handleClick = () => {
-    if (!clickable || !field.source) return;
-    // Prefer `bboxes` (per-line array from OCR-anchored backend). Fall back
-    // to legacy single `bbox` for any DB rows still on the old schema —
-    // drop the fallback in a cleanup PR after a clean re-extract.
-    const src = field.source;
-    const bboxes =
-      src.bboxes && src.bboxes.length > 0
-        ? src.bboxes
-        : src.bbox
-          ? [src.bbox]
-          : [];
-    onClick?.({
-      page: src.page_number,
-      fieldPath,
-      bboxes,
-    });
-  };
+  const corrected = useContext(CorrectedContext).includes(fieldPath);
+  const source = fieldHighlight(field, fieldPath);
+  const missing = field.value === null || field.value === undefined;
+  const noteSummary = corrected ? null : fieldNoteSummary(field);
 
   return (
-    <div
-      onClick={handleClick}
-      className={`flex flex-col gap-0.5 border-b border-gray-50 py-2 last:border-0 dark:border-gray-800/50 md:flex-row md:items-baseline md:justify-between md:gap-3 ${
-        clickable
-          ? "-mx-2 cursor-pointer rounded px-2 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-          : ""
-      }`}
-      title={clickable ? "Click to view source in PDF" : undefined}
-    >
-      <dt className="text-sm text-gray-500 md:flex-shrink-0">{label}</dt>
-      <dd className="flex items-center gap-2 text-sm">
-        <span className={field.value === null ? "text-gray-400" : "font-medium"}>
-          {formatValue(field.value, format)}
-        </span>
-        <ConfidenceBadge value={field.confidence} />
-        {clickable && (
-          <span className="text-[10px] text-blue-500 dark:text-blue-400">
-            p.{field.source?.page_number}
+    <div id={`field-${fieldPath}`} className="grid gap-1 border-b border-gray-100 py-3 last:border-0 dark:border-gray-800 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-x-4">
+      <dt className="text-sm text-gray-600 dark:text-gray-400">{label}</dt>
+      <dd className="min-w-0 text-sm">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className={`min-w-0 break-words ${missing ? "text-gray-600 dark:text-gray-400" : "font-medium"}`}>
+            {missing ? missingValueLabel(field) : formatFieldValue(field.value, format)}
           </span>
-        )}
+          {source && onClick && <button type="button" onClick={() => onClick(source)} aria-label={`View source for ${label}, page ${source.page}`} className="tenancy-no-print shrink-0 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">p.{source.page}</button>}
+          {source && <span className="tenancy-print-only text-xs">p.{source.page}</span>}
+          {corrected && <span className="text-xs text-gray-600 dark:text-gray-400">Corrected by reviewer</span>}
+        </div>
+        {noteSummary && <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{noteSummary}</p>}
+        <details className="tenancy-field-details mt-2 text-xs text-gray-600 dark:text-gray-400">
+          <summary className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">{field.notes ? corrected ? "Original model note" : "Note and certainty" : corrected ? "Correction details" : "Model certainty"}</summary>
+          <div className="mt-2 space-y-2 leading-relaxed">
+            {field.notes && <p>{corrected && <span className="font-medium">Before correction: </span>}{field.notes}</p>}
+            {corrected ? <p>The value was corrected by a reviewer. The stored certainty score is not an independent accuracy check.</p> : <p>Model certainty: {(field.confidence * 100).toFixed(0)}%. Self-reported; not measured accuracy or human verification.{missing && " This score does not supply the missing value."}</p>}
+          </div>
+        </details>
       </dd>
-      {field.notes && (
-        <p className="basis-full text-xs italic text-gray-500 md:mt-1">
-          {field.notes}
-        </p>
-      )}
     </div>
   );
-}
-
-function ConfidenceBadge({ value }: { value: number }) {
-  if (value >= 0.99) return null;
-  const color =
-    value >= 0.85
-      ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-      : value >= 0.7
-        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
-        : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-  const band =
-    value >= 0.85 ? "high" : value >= 0.7 ? "medium" : "low";
-  return (
-    <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${color}`}
-      title={`Model's self-reported confidence in this value: ${(value * 100).toFixed(0)}% (${band}). Bands: green ≥85%, yellow ≥70%, red <70%. Values ≥99% are not chipped.`}
-    >
-      {(value * 100).toFixed(0)}%
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-function humanize(key: string): string {
-  return key
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function formatValue(value: unknown, format?: FormatHint): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") {
-    if (format === "currency") {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(value);
-    }
-    return value.toLocaleString();
-  }
-  if (typeof value === "string") {
-    // Humanize enum-ish strings (snake_case)
-    if (/^[a-z_]+$/.test(value) && value.includes("_")) return humanize(value);
-    return value;
-  }
-  if (Array.isArray(value)) {
-    if (value.length === 0) return "—";
-    return value.join(", ");
-  }
-  return JSON.stringify(value);
 }

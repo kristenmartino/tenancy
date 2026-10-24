@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { queryLease, type FieldHighlight, type QAResponse } from "@/lib/api";
+import { fieldPathLabel } from "@/lib/presentation";
 
 const SUGGESTED_QUESTIONS = [
   "What is the rent?",
   "When does the lease expire?",
-  "Any flagged exceptions?",
+  "Which values need review?",
 ];
 
 // 5xx → backend / LLM failure (e.g. Haiku truncating its JSON output
@@ -14,7 +15,7 @@ const SUGGESTED_QUESTIONS = [
 function friendlyError(raw: string): { headline: string; detail: string } {
   if (/^5\d\d /.test(raw)) {
     return {
-      headline: "The model had trouble answering that — try again.",
+      headline: "Could not answer this question. Try again.",
       detail: raw,
     };
   }
@@ -80,11 +81,12 @@ export function QAPanel({
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
+          aria-label="Question about this lease"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Ask a question about this lease…"
           disabled={loading}
-          className="flex-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:placeholder:text-gray-500"
+          className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:placeholder:text-gray-500"
         />
         <button
           type="submit"
@@ -111,7 +113,7 @@ export function QAPanel({
 
       {loading && (
         <p className="text-sm italic text-gray-500" role="status">
-          Thinking…
+          Checking the extracted fields…
         </p>
       )}
 
@@ -169,7 +171,7 @@ export function QAPanel({
                         : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400"
                     }`}
                   >
-                    <code className="font-mono">{c.field_path}</code>
+                    <span>{fieldPathLabel(c.field_path)}</span>
                     {c.page_number != null && (
                       <span className="opacity-75">p.{c.page_number}</span>
                     )}

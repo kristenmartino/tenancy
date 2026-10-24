@@ -76,6 +76,7 @@ export type Lease = {
   extraction: Extraction | null;
   error: string | null;
   exception_count: number;
+  ready_to_proceed?: boolean;
   created_at: string;
   updated_at: string;
 };

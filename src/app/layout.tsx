@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tenancy — lease abstraction agent",
+  title: "Tenancy — lease review",
   description:
-    "Drop a residential lease PDF. Get structured fields, source citations, and a queue of flagged exceptions for human review.",
+    "Extract residential lease details, review flagged values, and check the original PDF.",
 };
 
 export default function RootLayout({

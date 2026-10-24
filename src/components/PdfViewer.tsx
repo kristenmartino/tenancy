@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import type { BoundingBox, FieldHighlight } from "@/lib/api";
+import { fieldPathLabel, pageAfterSourceChange } from "@/lib/presentation";
 
 // Worker from unpkg matching the bundled pdfjs-dist version exactly.
 // unpkg proxies npm directly, so any published version is available
@@ -36,7 +37,16 @@ export function PdfViewer({
   highlight?: FieldHighlight | null;
 }) {
   const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState(1);
+  const [navigation, setNavigation] = useState(() => ({ page: highlight?.page ?? 1, source: highlight }));
+  const pageNumber = pageAfterSourceChange(navigation.page, navigation.source, highlight);
+  // Adjust only when a new source is selected. Manual paging must not be
+  // overridden by the previously selected source on every page change.
+  if (navigation.source !== highlight) {
+    setNavigation({ page: pageNumber, source: highlight });
+  }
+  const setPageNumber = (update: (page: number) => number) => {
+    setNavigation((previous) => ({ ...previous, page: update(previous.page) }));
+  };
   const [error, setError] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<OverlayRect[]>([]);
   const [pageWidth, setPageWidth] = useState<number>(PAGE_MAX_WIDTH_PX);
@@ -60,13 +70,6 @@ export function PdfViewer({
     ro.observe(node);
     return () => ro.disconnect();
   }, []);
-
-  // When a highlight arrives, jump to that page (if different).
-  useEffect(() => {
-    if (highlight?.page && highlight.page !== pageNumber) {
-      setPageNumber(highlight.page);
-    }
-  }, [highlight, pageNumber]);
 
   const computeOverlays = useCallback(() => {
     const size = renderedSizeRef.current;
@@ -124,11 +127,11 @@ export function PdfViewer({
     <div className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
       {numPages > 0 && (
         <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-800">
-          <span className="text-xs text-gray-500">
+          <span className="min-w-0 text-xs text-gray-600 dark:text-gray-400">
             Page {pageNumber} of {numPages}
-            {highlight && (
-              <span className="ml-2 font-mono text-blue-500">
-                ← {highlight.fieldPath}
+            {highlight?.page === pageNumber && (
+              <span className="ml-2 text-blue-700 dark:text-blue-300">
+                ← {fieldPathLabel(highlight.fieldPath)}
               </span>
             )}
           </span>
