@@ -39,9 +39,23 @@ export function getField(extraction: Extraction | null, path: string): Extracted
 }
 
 export function fieldHighlight(field: ExtractedField | null, path: string): FieldHighlight | null {
-  if (!field?.source) return null;
+  if (!field?.source || field.source.match_type === "absent" || !Number.isInteger(field.source.page_number) || field.source.page_number < 1) return null;
   return { page: field.source.page_number, fieldPath: path,
     bboxes: field.source.bboxes?.length ? field.source.bboxes : field.source.bbox ? [field.source.bbox] : [] };
+}
+
+// Q&A can suggest field paths, but its page/snippet are generated text.
+// Resolve navigation from the stored extraction, never from that suggestion.
+export function citationField(extraction: Extraction, path: string) {
+  const field = getField(extraction, path);
+  return { field, source: fieldHighlight(field, path) };
+}
+
+export function displayedFieldValue(field: ExtractedField, format?: "currency" | "default", corrected = false): string {
+  if (field.value == null) return missingValueLabel(field);
+  const value = formatFieldValue(field.value, format);
+  return !corrected && typeof field.value === "boolean" && field.source?.match_type === "inferred"
+    ? `Model interpretation: ${value}` : value;
 }
 
 export function missingValueLabel(field: ExtractedField): string {
