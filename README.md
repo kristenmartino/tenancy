@@ -42,6 +42,8 @@ Vercel auto-detects Next.js — push the repo, import it in Vercel, no env vars 
 
 ## Status
 
+Q&A receives stored extraction fields, not the exception queue or review decisions. Its suggested questions cover lease values; use the queue for review status. Citation buttons resolve field paths against the stored extraction and use that field’s page and highlight coordinates, ignoring model-generated pages and snippets. Unknown field paths, section-level references and absent sources cannot create PDF links. Citations to reviewer-corrected fields identify the PDF as the original source, which may still show the previous value. This structural check does not verify that a field supports the answer. Saving a review decision clears the displayed answer and pauses Q&A until the refreshed fields load. Inferred boolean values are labeled as model interpretations with the stored source excerpt; they can still be wrong.
+
 The prototype implements ingest → extract → validate → review queue → Q&A, with text highlighting where source matching succeeds. Extraction accuracy and citation coverage have not been established on a labeled evaluation set. Confidence values are model reports, not calibrated probabilities. Extractions are saved before review; the readiness flag summarizes blocking exceptions and does not export to a property-management system. Demo recording remains pending. Productize gates (multi-tenant auth, eval set, queue infra, observability) explicitly deferred per the case-study framing — see [`STATUS.md`](STATUS.md) for the full roadmap and recent decisions.
 
 ---

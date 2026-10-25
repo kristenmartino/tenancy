@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SeverityBadge } from "@/components/StatusBadge";
 import { resolveException, type Exception, type ExtractedField, type FieldHighlight, type ResolveAction } from "@/lib/api";
-import { exceptionMessage, fieldPathLabel, formatFieldValue, fieldFormat, missingValueLabel } from "@/lib/presentation";
+import { exceptionMessage, fieldPathLabel, formatFieldValue, fieldFormat, displayedFieldValue } from "@/lib/presentation";
 
 export function ExceptionRow({ exception, field, initialEditValue, source, onSourceClick, onResolved, disabled = false }: {
   exception: Exception;
@@ -43,7 +43,7 @@ export function ExceptionRow({ exception, field, initialEditValue, source, onSou
         <h3 className="text-sm font-semibold">{fieldPathLabel(exception.field_path)}</h3>
         {(!exception.resolved || rejectedBlocker) && <SeverityBadge severity={exception.severity} />}
       </div>
-      <p className="mt-2 break-words text-sm"><span className="text-gray-600 dark:text-gray-400">Extracted value: </span><span className="font-medium">{field ? field.value == null ? missingValueLabel(field) : formatFieldValue(field.value, fieldFormat(exception.field_path)) : "No extracted value available"}</span></p>
+      <p className="mt-2 break-words text-sm"><span className="text-gray-600 dark:text-gray-400">Extracted value: </span><span className="font-medium">{field ? displayedFieldValue(field, fieldFormat(exception.field_path), exception.resolved && exception.resolution === "edit") : "No extracted value available"}</span></p>
       <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">{exceptionMessage(exception)}</p>
       {exception.resolved && <p className="mt-2 text-sm font-medium">{resolutionLabel}{exception.resolution === "edit" && correction !== undefined && <>: <span className="break-words">{formatFieldValue(correction, fieldFormat(exception.field_path))}</span></>}</p>}
       {rejectedBlocker && <p className="mt-2 text-sm text-red-800 dark:text-red-200">This rejected value remains a blocker.</p>}

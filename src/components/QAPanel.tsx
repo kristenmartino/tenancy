@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { queryLease, type FieldHighlight, type QAResponse } from "@/lib/api";
-import { fieldPathLabel } from "@/lib/presentation";
+import { queryLease, type Extraction, type FieldHighlight, type QAResponse } from "@/lib/api";
+import { fieldPathLabel, citationField } from "@/lib/presentation";
 
 const SUGGESTED_QUESTIONS = [
   "What is the rent?",
   "When does the lease expire?",
-  "Which values need review?",
+  "What is the security deposit?",
 ];
 
 // 5xx → backend / LLM failure (e.g. Haiku truncating its JSON output
@@ -27,9 +27,13 @@ function friendlyError(raw: string): { headline: string; detail: string } {
 
 export function QAPanel({
   leaseId,
+  extraction,
+  correctedPaths,
   onCitationClick,
 }: {
   leaseId: string;
+  extraction: Extraction;
+  correctedPaths: string[];
   onCitationClick: (h: FieldHighlight) => void;
 }) {
   const [question, setQuestion] = useState("");
@@ -66,14 +70,8 @@ export function QAPanel({
   };
 
   const handleCitationClick = (citation: QAResponse["citations"][number]) => {
-    if (citation.page_number == null) return;
-    // Q&A citations come from the Q&A response shape which doesn't carry
-    // bbox coords — only page + snippet. Page-jump only, no overlay.
-    onCitationClick({
-      page: citation.page_number,
-      fieldPath: citation.field_path,
-      bboxes: [],
-    });
+    const { source } = citationField(extraction, citation.field_path);
+    if (source) onCitationClick(source);
   };
 
   return (
@@ -146,14 +144,17 @@ export function QAPanel({
       )}
 
       {response && !loading && (
-        <div className="rounded border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div role="region" aria-label="Model answer" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <p className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-400">Model answer · verify against the PDF</p>
           <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
             {response.answer}
           </p>
           {response.citations.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {response.citations.map((c, i) => {
-                const clickable = c.page_number != null;
+                const { source } = citationField(extraction, c.field_path);
+                const clickable = source !== null;
+                const corrected = correctedPaths.includes(c.field_path);
                 return (
                   <button
                     key={`${c.field_path}-${i}`}
@@ -162,8 +163,8 @@ export function QAPanel({
                     disabled={!clickable}
                     title={
                       clickable
-                        ? "Click to view source in PDF"
-                        : "No page reference for this citation"
+                        ? "View the stored field source in PDF; answer support is not verified"
+                        : "No stored field source available for this model reference"
                     }
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
                       clickable
@@ -172,14 +173,14 @@ export function QAPanel({
                     }`}
                   >
                     <span>{fieldPathLabel(c.field_path)}</span>
-                    {c.page_number != null && (
-                      <span className="opacity-75">p.{c.page_number}</span>
-                    )}
+                    <span className="opacity-75">{source ? `p.${source.page}` : "Source unavailable"}</span>
+                    {corrected && <span>Reviewer corrected · original source</span>}
                   </button>
                 );
               })}
             </div>
           )}
+          <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">Links use stored field sources; they do not verify the answer. Original sources may show values from before a reviewer correction. Use the queue for review status. Certainty scores do not establish accuracy.</p>
         </div>
       )}
     </div>

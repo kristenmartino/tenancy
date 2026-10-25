@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reviewState, missingValueLabel, fieldNoteSummary, fieldHighlight, documentName, exceptionMessage, formatFieldValue, pageAfterSourceChange, loadReviewSnapshot, fieldFormat } from "./presentation.ts";
+import { reviewState, missingValueLabel, fieldNoteSummary, fieldHighlight, documentName, exceptionMessage, formatFieldValue, pageAfterSourceChange, loadReviewSnapshot, fieldFormat, citationField, displayedFieldValue } from "./presentation.ts";
 
 const item = (overrides = {}) => ({ exception_id: "a", resolved: false, resolution: null, severity: "blocking", description: "", exception_type: "missing_required_field", ...overrides });
 
@@ -88,4 +88,32 @@ test("canonical snapshots stay atomic if either read fails after a saved edit", 
 test("queue values use currency formatting only for currency fields", () => {
   assert.equal(formatFieldValue("1250", fieldFormat("deposits.security_deposit")), "$1,250.00");
   assert.equal(formatFieldValue("76706", fieldFormat("property.zip_code")), "76706");
+});
+
+
+test("absent and invalid-page sources cannot navigate to a made-up PDF location", () => {
+  for (const source of [{ page_number: 1, match_type: "absent" }, { page_number: 0 }, { page_number: -2 }, { page_number: 1.5 }]) {
+    assert.equal(fieldHighlight({ value: null, source }, "property.square_feet"), null);
+  }
+  assert.equal(fieldHighlight({ value: null, source: { page_number: 2, match_type: "blank" } }, "term.start_date").page, 2);
+});
+
+test("Q&A navigation requires a stored leaf field with a usable source", () => {
+  const boxes = [{ x: .1, y: .2, width: .3, height: .04 }];
+  const extraction = { rent: { base_monthly_rent: { value: 1500, source: { page_number: 2, bboxes: boxes } } }, overall_confidence: .99, utilities: { gas: { value: null, source: { page_number: 1, match_type: "absent" } } }, parties: [{ name: { value: "Example", source: { page_number: 3 } } }] };
+  const modelCitation = { field_path: "rent.base_monthly_rent", page_number: 999, snippet: "invented" };
+  const actual = citationField(extraction, modelCitation.field_path).source;
+  assert.equal(actual.page, 2);
+  assert.deepEqual(actual.bboxes, boxes);
+  for (const path of ["utilities", "overall_confidence", "rent.invented", "utilities.gas"]) assert.equal(citationField(extraction, path).source, null);
+  assert.equal(citationField(extraction, "parties[0].name").source.page, 3);
+});
+
+test("inferred boolean interpretations remain distinct from explicit and corrected values", () => {
+  const field = { value: false, source: { match_type: "inferred" } };
+  assert.equal(displayedFieldValue(field), "Model interpretation: No");
+  assert.equal(displayedFieldValue({ ...field, value: true }), "Model interpretation: Yes");
+  assert.equal(displayedFieldValue(field, undefined, true), "No");
+  assert.equal(displayedFieldValue({ ...field, source: { match_type: "checkbox" } }), "No");
+  assert.equal(displayedFieldValue({ value: null, source: { match_type: "absent" } }), "Not stated");
 });

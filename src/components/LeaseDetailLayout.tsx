@@ -21,6 +21,7 @@ export function LeaseDetailLayout({ lease: initialLease, exceptions: initialExce
   const priority = { blocking: 0, warning: 1, informational: 2 };
   const active = [...review.open, ...review.rejected].sort((a, b) => priority[a.severity] - priority[b.severity]);
   const history = exceptions.filter((item) => item.resolved && !review.rejected.includes(item));
+  const correctedPaths = exceptions.filter((item) => item.resolved && item.resolution === "edit").map((item) => item.field_path);
   const pdfUrlWithCacheBust = `${pdfUrl}?v=${encodeURIComponent(lease.updated_at)}`;
 
   async function refreshSnapshot(updated?: Exception) {
@@ -72,9 +73,9 @@ export function LeaseDetailLayout({ lease: initialLease, exceptions: initialExce
         <h2 className="mb-2 text-xl font-semibold tracking-tight">Extracted fields</h2>
         {savedDecision && <p role="status" className="mb-3 text-sm font-medium text-amber-900 dark:text-amber-200">These fields are from before your last saved decision. Awaiting reload.</p>}
         <p className="mb-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">Use the page links to check each value. Model certainty is self-reported; it is not measured accuracy or human verification.</p>
-        {lease.extraction ? <ExtractionView extraction={lease.extraction} onFieldClick={viewSource} correctedPaths={exceptions.filter((item) => item.resolved && item.resolution === "edit").map((item) => item.field_path)} />
+        {lease.extraction ? <ExtractionView extraction={lease.extraction} onFieldClick={viewSource} correctedPaths={correctedPaths} />
           : <p className="text-sm text-gray-600 dark:text-gray-400">{review.waiting ? "Extraction is in progress. Results will appear here automatically." : review.failed ? "No extracted fields are available. Upload the PDF again to retry." : "No extracted fields are available for this lease."}</p>}
-        {lease.extraction && <details className="tenancy-no-print mt-8 border-t border-gray-200 pt-5 dark:border-gray-800"><summary className="cursor-pointer text-base font-semibold">Ask about this lease</summary><p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Answers use the extracted fields. Check the cited pages for context.</p><div className="mt-4"><QAPanel leaseId={lease.lease_id} onCitationClick={viewSource} /></div></details>}
+        {lease.extraction && <details className="tenancy-no-print mt-8 border-t border-gray-200 pt-5 dark:border-gray-800"><summary className="cursor-pointer text-base font-semibold">Ask about this lease</summary><p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Answers use the extracted fields, including saved corrections. Review decisions are not included. Check the source PDF for context.</p><div className="mt-4">{refreshing || savedDecision ? <p role="status" className="text-sm">Reload the saved fields before asking another question.</p> : <QAPanel key={JSON.stringify(lease.extraction)} leaseId={lease.lease_id} extraction={lease.extraction} correctedPaths={correctedPaths} onCitationClick={viewSource} />}</div></details>}
       </section>
     </div>
   );

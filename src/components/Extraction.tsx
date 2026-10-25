@@ -7,7 +7,7 @@ import type {
   FieldHighlight,
   Party,
 } from "@/lib/api";
-import { fieldLabel, fieldHighlight, fieldNoteSummary, missingValueLabel, formatFieldValue } from "@/lib/presentation";
+import { fieldLabel, fieldHighlight, fieldNoteSummary, displayedFieldValue } from "@/lib/presentation";
 
 // Pass the click handler through React Context instead of prop-drilling
 // through 4 layers of section / list / row components.
@@ -294,13 +294,14 @@ function FieldRow({
       <dd className="min-w-0 text-sm">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className={`min-w-0 break-words ${missing ? "text-gray-600 dark:text-gray-400" : "font-medium"}`}>
-            {missing ? missingValueLabel(field) : formatFieldValue(field.value, format)}
+            {displayedFieldValue(field, format, corrected)}
           </span>
           {source && onClick && <button type="button" onClick={() => onClick(source)} aria-label={`View source for ${label}, page ${source.page}`} className="tenancy-no-print shrink-0 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">p.{source.page}</button>}
           {source && <span className="tenancy-print-only text-xs">p.{source.page}</span>}
           {corrected && <span className="text-xs text-gray-600 dark:text-gray-400">Corrected by reviewer</span>}
         </div>
         {noteSummary && <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{noteSummary}</p>}
+        {!corrected && typeof field.value === "boolean" && field.source?.match_type === "inferred" && field.source.snippet && <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Source excerpt: “{field.source.snippet}”</p>}
         <details className="tenancy-field-details mt-2 text-xs text-gray-600 dark:text-gray-400">
           <summary className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">{field.notes ? corrected ? "Original model note" : "Note and certainty" : corrected ? "Correction details" : "Model certainty"}</summary>
           <div className="mt-2 space-y-2 leading-relaxed">
